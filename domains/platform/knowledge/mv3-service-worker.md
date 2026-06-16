@@ -39,6 +39,20 @@ Each `chrome.*` / `browser.*` API call resets the 30s idle timer. At 2s cadence 
 
 Ongoing idle termination is **not** a live failure mode while the extension is running. Cold starts (browser launch, extension enable/reload, crash recovery) are the actual source of MV3-concentrated failures.
 
+## Telemetry Cost of Cold Starts
+
+Cold starts drive background-context **telemetry volume**, not just reliability. Each cold start creates a fresh root transaction for the worker carrying an initialization burst: a tracing-init marker plus the network calls the worker fires on startup. The 2s keepalive suppresses *in-session* transaction churn but does nothing about cold-start frequency — so across a large install base, cold-start count (not in-session activity) sets the background span/event volume, and the worker root transaction can be the single largest contributor.
+
+Implication for instrumentation: anything attached to worker startup (marks, auto-instrumented fetches, init spans) is multiplied by cold-start frequency. Cold starts are browser-controlled, so the lever is emission, not lifecycle — sample the worker's **root transaction** rather than trying to reduce cold-starts, and preserve failure traces while sampling healthy ones (see Sentry Diagnostic Instrumentation below).
+
+| Lever | Effect |
+|---|---|
+| Sample the worker root transaction | Drops the whole startup burst proportionally; keep failure traces |
+| Suppress zero-value startup marks | Removes one span per cold start |
+| Sub-sample auto-instrumented startup fetches | Cuts the per-cold-start network burst |
+
+A telemetry spike concentrated on the background root transaction is therefore a cold-start-frequency signal, not necessarily new per-session work — verify against cold-start count before attributing it to a code change.
+
 ## Verification Discipline
 
 Before attributing an MV3-concentrated error to "idle termination pressure":
