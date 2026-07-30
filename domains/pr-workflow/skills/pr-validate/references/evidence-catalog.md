@@ -2,7 +2,7 @@
 
 The menu of evidence kinds for validating a MetaMask **extension** PR, with **what each proves**, **how to capture it (verified against the live repo)**, and **when to reach for it**. AEP is the primary autonomous engine; the rest are complementary. The skill's job is to **match evidence to the claim** and to **proactively suggest kinds the author didn't think of**.
 
-Pick the evidence that would **falsify the claim if it were false**. Prefer a lane that yields an artifact a reviewer can independently re-check (a link, an image, a number, a replayable trace) over prose. Don't run the whole menu — match, then capture. Capture commands are written against the `metamask-extension` checkout; verify script names against its `package.json` (they drift).
+Pick the evidence that would **falsify the claim if it were false**. Prefer a lane that yields an artifact a reviewer can independently re-check (a link, an image, a number, a replayable trace) over prose. Don't run the whole menu — match, then capture. Capture commands cite `~/Code/metamask/metamask-extension`; verify script names against its `package.json` (they drift).
 
 Legend: **first-class lanes** are `##`-headed; closely-related variants are sub-bullets. Capture marked *(manual)* has no repo helper — it's a DevTools/CDP action.
 
@@ -12,12 +12,12 @@ Legend: **first-class lanes** are `##`-headed; closely-related variants are sub-
 
 ## A1. visual_validation — before/after screenshots
 - **Proves:** a visible UI change on the real surface. Deterministic state seed + agent navigation; PNG artifacts in `evidenceBundle.artifactRefs`.
-- **Capture:** `taskClass: visual_validation`, `payload.prUrl` + `description` hint. See the *Preflight* and *Run mechanics* sections of [skill.md](../skill.md).
+- **Capture:** `taskClass: visual_validation`, `payload.prUrl` + `description` hint. See [aep-local-run.md](aep-local-run.md).
 - **Reach for it:** anything a human would screenshot for the PR's `### After`.
 
 ## A2. perf_validation — falsifiable network/static/smoke assertions
 - **Proves:** non-visible behavior (hover-preload, no double-fetch, chunk membership, smoke boot). CDP netlog / phase segmentation / source-map membership.
-- **Capture:** `taskClass: perf_validation` (needs a `yarn webpack --test` build). Confirm the perf-validation graph is registered in your AEP checkout; falls back to C6/D2 manually if it isn't present.
+- **Capture:** `taskClass: perf_validation` (local/uncommitted graph; needs `yarn webpack --test`). Falls back to C6/D2 manually if the graph isn't present.
 
 ## A3. AEP bundle byproducts (free with any run)
 - Test results (`executionResult`/`checkResults`), diff stats, automated `reviewResult` findings, and the **LangSmith trace** of the run. Include the relevant subset; link the trace for auditability.
@@ -44,7 +44,8 @@ Legend: **first-class lanes** are `##`-headed; closely-related variants are sub-
 - **Reach for it:** every bug-fix PR. If you can't write a test that fails on main, question whether the fix addresses the reported bug.
 
 ## B7. Deterministic interleaving test (concurrency / temporal-ordering) ⭐
-- **Proves:** an ordering guarantee under interleaving — retry, cancellation, supersession, debounce, locks, queues, async state machines — where the correctness *is* the ordering under races, not a value.
+- **Engine:** `race-condition-proof` — run it rather than hand-rolling the harness.
+- **Proves:** an ordering guarantee under interleaving — retry, cancellation, supersession, debounce, locks, queues, async state machines — where the correctness *is* the ordering under races, not a value. Full category: `exogram-daemon/artifacts/evidence-taxonomy/category-concurrency-temporal-ordering.md`.
 - **Capture:** force each race deterministically — `jest.useFakeTimers()` + `advanceTimersByTimeAsync(DELAY)` to fire the delayed action at a known point; `Promise.all([opA, opB])` to overlap operations; `advanceTimersByTimeAsync(0)` to step to a precise interleaving point; then assert the ordering/cancellation outcome for **each** guarantee, including asymmetric ones (one path canceled → its recovery event `.not.toHaveBeenCalled()`; another must complete → `.toHaveBeenCalledWith(...)`). Corroborate with transition telemetry; for the integration path, a live forced-race capture (C8/CDP, the #44610 technique).
 - **Trust-gate:** the test must **actually interleave** — time advanced into the pending window, the superseding op injected *during* it. A sequential run exercises no race and is a vacuous green. Verify the interleaving, not just the assertion.
 
@@ -72,7 +73,7 @@ Legend: **first-class lanes** are `##`-headed; closely-related variants are sub-
 ## C2. Web vitals — INP / FCP / LCP / CLS
 - **Proves:** a user-centric metric moved. `ui/helpers/utils/web-vitals.ts` via `web-vitals/attribution` (attribution names the causing element).
 - **Capture:** `window.stateHooks.getWebVitalsMetrics()` (test/debug) → `{inp, fcp, lcp, cls, *Rating}`. Thresholds: INP good<200/poor>500, FCP<1800/3000, LCP<2500/4000, CLS<0.1/0.25.
-- **Caveat:** **INP fires on all pages; FCP/LCP/CLS do not fire on popup pages** (sidepanel/E2E only). For extensions, INP is the high-value runtime metric.
+- **Caveat:** **INP fires on all pages; FCP/LCP/CLS do not fire on popup pages** (sidepanel/E2E only). For extensions, INP is the high-value runtime metric (per exogram `web-vitals-runtime-metrics`).
 
 ## C3. Long-task / TBT
 - **Proves:** main-thread blocking during an interaction dropped. This is where **TBT** lives (the web-vitals lib lane does *not* collect TBT).
@@ -80,16 +81,16 @@ Legend: **first-class lanes** are `##`-headed; closely-related variants are sub-
 
 ## C4. React render & selector proof
   - **Engine: the `react-render-proof` skill.** Delegate the measurement to it; it runs the source/delivery/metric gates, derives the needle from real build output, repeats the capture, and returns a band (or "not resolvable at this n" with an MDE). pr-validate packages the result.
-- **Proves:** a component/selector stopped over-rendering (cascade-amplification before/after).
+- **Proves:** a component/selector stopped over-rendering (cascade-amplification before/after — exogram `react-redux-performance`).
 - **Capture:** WDYR via `ENABLE_WHY_DID_YOU_RENDER` (`.metamaskrc` or env) — wired in `app/scripts/development/wdyr.ts` (`trackAllPureComponents`); console logs each unnecessary re-render. `yarn devtools:react` for the Profiler flame graph. Selectors use `reselect`'s `createSelector`, which **does expose a real `.recomputations()` counter** — read it (sample on an interval if the count should visibly climb) rather than injecting a log into the selector body; an injected log is an authored claim, a library API is an observation. *(This entry previously said there was no built-in counter. There is.)*
 - **Bar:** the delivery check comes before the number. An arm whose manipulation cannot be observed in the built bundle produces a null indistinguishable from "small effect" — and reports as the second.
 
 ## C5. Benchmark A/B
 - **Proves:** a startup/journey/interaction timing moved, with a distribution not one sample.
 - **Capture:** `yarn test:e2e:benchmark` (`test/e2e/benchmarks/run-benchmark.ts`); presets in `shared/constants/benchmarks.ts` (`startupStandardHome`, `sendTransactions`, `swap`, `dappPageLoad`, …).
-- **Caveat:** the rolling baseline (`MetaMask/extension_benchmark_stats`) can **silently freeze** behind a green check (the `store-benchmark-stats` step is `continue-on-error`; happened 2026-04-02, PR #42947). Prefer a **paired A/B** (build both refs now, compare directly) over the stored baseline.
+- **Caveat:** the rolling baseline (`MetaMask/extension_benchmark_stats`) can **silently freeze** behind a green check (the `store-benchmark-stats` step is `continue-on-error`; happened 2026-04-02, PR #42947). Prefer a **paired A/B** (build both refs now, compare directly) over the stored baseline. See exogram `benchmark-baseline-staleness-paired-ab`.
 - **Treatment check first** — before trusting any delta, confirm the mechanism under test is actually active in each arm (split chunk present in head and absent in base; the span emitted; the flag evaluated). An arm without the treatment delivered is a no-op, not a control (2026-07-22, #42795).
-- **A null needs its power stated** — "no change" and "underpowered" print the same result. When the run-to-run spread exceeds the effect under test, report **not resolvable at this n** and name the smallest detectable effect; never let it read as "no effect". Correcting a known bias (discarding a warm-up, alternating the starting arm) removes *that* bias and nothing more — it is not a trust gate, and the confounds you did not enumerate (thermal drift, background load, ordering within a round) stay live.
+- **A null needs its power stated** — "no change" and "underpowered" print the same result. When the run-to-run spread exceeds the effect under test, report **not resolvable at this n** and name the smallest detectable effect; never let it read as "no effect". Correcting a known bias (discarding a warm-up, alternating the starting arm) removes *that* bias and nothing more — it is not a trust gate, and the confounds you did not enumerate (thermal drift, background load, ordering within a round) stay live. See exogram `removing-a-bias-is-not-establishing-validity` (2026-07-24).
 
 ### Capturing an authenticated view (the in-situ requirement)
 
@@ -137,7 +138,7 @@ COOKIE_NAME=grafana_session COOKIE_VALUE="$sess" COOKIE_DOMAIN=<host> \
 
 ## C9. Retention-path analysis — memory leak from code ⭐ *(static; lead for leak claims)*
 - **Engine: the `memory-leak-hunt` skill.** For a memory-leak claim, delegate the analysis to `memory-leak-hunt` — it runs Phase-1 static pairing (and Phase-2 heap investigation if a primitive can't be paired) and returns the paired/unpaired sites + verdict. pr-validate keeps **memory leak** as the evidence category: it invokes the skill on the diff and packages the result (in-situ scan capture, plus the lifecycle test / retainer graph if Phase 2 ran) as the category's evidence. The lane spec below is the method that skill implements.
-- **Proves:** "X is retained past its lifecycle boundary" / "collection Y grows unboundedly" — argued from code, no runtime needed. This is the lane that works at **review time** (does this PR *introduce* retention?) and leads fix-side validation (does the fix *break* the retention path?). C7 is the runtime corroborator, not the lead — leaks need many cycles to exceed noise.
+- **Proves:** "X is retained past its lifecycle boundary" / "collection Y grows unboundedly" — argued from code, no runtime needed. This is the lane that works at **review time** (does this PR *introduce* retention?) and leads fix-side validation (does the fix *break* the retention path?). C7 is the runtime corroborator, not the lead — leaks need many cycles to exceed noise. Full category: `exogram-daemon/artifacts/evidence-taxonomy/category-memory-retention-from-code.md`.
 - **Capture — the holder → held → boundary triple, per suspect:** (1) the **holder** (listener, closure, module singleton, accumulating collection, timer); (2) the **held set** — the *specific* objects pinned (list the closure's captures; note when a closure links two objects' GC); (3) the **outlived boundary** (`destroy()`, stream close, instance replacement, request completion). Method: **pair every acquire with its release site** (`on`↔`removeListener`, push↔drain, assign↔null) — the absence of the pair, cited at the acquire site, IS the finding. Four canonical shapes: unbounded accumulator (defeated guard, no drain) · stale-instance listeners on replacement · unremoved listener + capture set · retention past `destroy()`.
 - **Scope to the diff, or you invent findings.** Classify every flagged primitive as *introduced by this PR* (in the added lines) vs *pre-existing* (already in the file). Charge only the introduced ones to the PR; report pre-existing un-paired primitives separately and uncharged. On extension#40684 the two new stream listeners each had a `removeListener` on `onStreamClosed` (the exact fix a reviewer suggested) and the new pending-request Map had its `.delete` — no leak introduced — while three pre-existing un-torn-down listeners were surfaced but left uncharged, matching how the human/bot reviewers treated them in-thread. This lane *is* the retention review automated; a heap snapshot (C7) is warranted only for an introduced primitive it cannot pair.
 - **Corroborate:** a falsifying lifecycle test (force the boundary, assert release — listener count zero, singleton nulled, collection drained); C7 heap-over-flow with the **retainer graph naming the same path** the static argument named.
@@ -151,7 +152,7 @@ COOKIE_NAME=grafana_session COOKIE_VALUE="$sess" COOKIE_DOMAIN=<host> \
 
 ## D3. LavaMoat policy / supply-chain capability diff
   - **Engine: the `supply-chain-audit` skill** (umbrella — lockfile/manifest diff, advisories, Socket Security, install scripts), which delegates capability grants to **`lavamoat-policy-diligence`** (per-grant call-site justification). Delegate the dependency change to the umbrella; it returns a disposition per lane. pr-validate keeps **supply-chain capability diff** as the evidence category and packages the output. Note the lanes are independent: a clean policy diff does not mean a safe dependency, and a known CVE never appears as a new grant.
-- **Proves:** a dependency change (bump/add/lockfile) grants **no *unjustified* new capability** — the supply-chain-risk lane. Note the bar: for a bump the policy *will* change, so "empty diff" is the WRONG test; the right test is **every new grant is justified by the dep's function**. The framing generalizes past LavaMoat to any capability-containment mechanism.
+- **Proves:** a dependency change (bump/add/lockfile) grants **no *unjustified* new capability** — the supply-chain-risk lane. Note the bar: for a bump the policy *will* change, so "empty diff" is the WRONG test; the right test is **every new grant is justified by the dep's function**. Full category (trust-boundary framing, generalizes past LavaMoat to any capability-containment mechanism): `exogram-daemon/artifacts/evidence-taxonomy/category-supply-chain-capability-diff.md`.
 - **Capture:** **Prefer the CI-generated policy whenever one is available.** `@metamaskbot update-policies` regenerates the policy files from a real run of the code and `validate-lavamoat-policies` fails the build on drift, so the committed policy on a bot-run PR *is* the authoritative artifact — diff that. Regenerating locally when a current CI policy exists only re-does a machine that is already trusted, and a local run's provenance is weaker (your node/OS/lockfile resolution, not CI's). **Local regen is the fallback**, for when the bot hasn't run yet, the branch is unpushed, or you need a variant CI didn't cover: `yarn webpack:lavamoat:policy:build` (`:mv2` / `:mv3` for variants) over `lavamoat/webpack/build/policy.json` (+ `policy-override.json`). Either way, `git diff` the policy across **all 8 variants** (mv{2,3}/{main,beta,flask,experimental}) — a grant can appear in one and not others. Then audit **grant-by-grant**: new **globals** (`fetch`, `importScripts`, `WebAssembly`) / **builtins** (`fs`, `child_process`) on a dep that shouldn't need them, new **packages** edges to powerful APIs, or an identifier substitution (`pkgC>name` replacing `pkgB>pkgA>name` = possible dep swap). Falsifier = a surprising grant ("I wonder what it's using this for"). Guide: lavamoat.github.io/guides/policy-diff/. `allowScripts` in `package.json` gates install scripts.
 
 ## D4. Manifest permissions diff
@@ -161,6 +162,25 @@ COOKIE_NAME=grafana_session COOKIE_VALUE="$sess" COOKIE_DOMAIN=<host> \
 ## D5. Build-variant matrix
 - **Proves:** the change works across build types, not just main.
 - **Capture:** `yarn build:test:flask` / `:beta` / `:mv2` (`ENABLE_MV3=false`, Firefox). Run the relevant lane per variant when behavior is build-type-gated.
+
+## D6. Authored-vs-authoritative substitution A/B ⭐ *(fixed head; lead for "the artifact restates a source" claims)*
+- **Proves:** whether an artifact the PR *hand-wrote* agrees with the source it restates — a type vs the value's real type, a hand-maintained schema vs the generated one, a vendored constant vs the upstream export, a checked-in policy vs `update-policies` output. The finding is the **delta in a checker's output**, not a reading of the diff.
+- **Shape:** both arms sit at the **same commit**; they differ by a *substitution*, not by a ref — so there is no build, no rebase, and no merge boundary to confound.
+  - **Arm A** — the PR as written, run through the checker. Must be **silent**. A non-empty Arm A means the instrument is broken and Arm B is unreadable (see trustworthiness gate item 19).
+  - **Arm B** — same tree, with the authored artifact replaced by the **derived** equivalent, exercised exactly as the real code exercises it. Every new diagnostic is a disagreement the authored version concealed.
+- **Capture (TypeScript worked example — extension#44397, 2026-07-30):**
+  ```bash
+  # Arm A — baseline. Expect zero errors.
+  NODE_OPTIONS='--max-old-space-size=9216' npx tsc -p tsconfig.json --noEmit
+  # Arm B — probe files that substitute the derived type and call it as the caller does.
+  mkdir -p app/scripts/derive-probe && cp probe-*.ts app/scripts/derive-probe/
+  NODE_OPTIONS='--max-old-space-size=9216' npx tsc -p tsconfig.json --noEmit   # diagnostics = the findings
+  rm -rf app/scripts/derive-probe
+  ```
+  One probe per claim, each naming the authoritative source in a header comment and calling the derived type the way the real call site does. Keep the probes as the artifact — they are the re-runnable falsifier.
+- **Why it finds what review and CI miss:** the authored artifact compiles, so CI is green *by construction*. In a partially-migrated repo the asymmetry is structural — with `checkJs` off, a type written for a function whose callers are still `.js` is checked against nothing, and drifts silently forever. Those boundaries are where the lane pays.
+- **Traps:** (a) **a substitution can fail for the wrong reason** — a diagnostic on an earlier property short-circuits the one under test, and counting exit codes reads that as confirmation; assert on the *specific* diagnostic, and re-probe with the earlier cause neutralised (`NonNullable<…>`, a targeted assertion) to isolate each claim. Same hazard as B3's "fails on base for the wrong reason." (b) **no authoritative source may exist** — an unshipped package's types, a lib not in tsconfig `lib`, a genuinely new boundary the repo owns. Hand-writing is then *correct*; report it as a cleared falsifier, not a finding.
+- **Pairs with:** [lane-assertions.md](lane-assertions.md) for the recipe form; D3 when the substituted artifact is a LavaMoat policy.
 
 ---
 
@@ -224,7 +244,7 @@ COOKIE_NAME=grafana_session COOKIE_VALUE="$sess" COOKIE_DOMAIN=<host> \
 - **G2. Coverage delta** — `yarn test:unit:coverage` → `coverage/unit/` (and `yarn test:unit:webpack:coverage`); `codecov.yml`. Proves the new code is exercised.
 - **G3. Automated-reviewer output** — independent bot (e.g. cursor[bot]) found nothing blocking. Complements, never replaces, behavior evidence.
 - **G4. Manual reproduction steps** — human-followable steps that reproduce the fixed behavior; populates the PR template's Manual testing steps.
-- **G5. CI-workflow change, run on a test fork** — a CI-YAML-only PR usually **cannot exercise the workflow it edits**: identical build output ⇒ builds reused from base ⇒ `needs-<X>=false` ⇒ the workflow is *skipped* (`get-requirements.yml:654`). Escape: in a fork you control, push to a branch literally named **`main`** (or `stable`) — `IS_RUN_EVERYTHING_BRANCH` (line 48) disables `find-reusable-builds` (line 310), so the workflow runs; `IS_CROSS_REPO_PR` is false inside the fork. Requires the workflow's secrets configured on that fork (the benchmark jobs need the Infura and test-account secrets; `vars.`-gated Sentry/AWS steps skip cleanly) and a fork sync first. **State fork-scope in the published evidence** — it proves the workflow logic, not a run on the canonical repo.
+- **G5. CI-workflow change, run on a test fork** — a CI-YAML-only PR usually **cannot exercise the workflow it edits**: identical build output ⇒ builds reused from base ⇒ `needs-<X>=false` ⇒ the workflow is *skipped* (`get-requirements.yml:654`). Escape: push to a branch literally named **`main`** (or `stable`) on `consensys-test/metamask-extension-test-majorlift` — `IS_RUN_EVERYTHING_BRANCH` (line 48) disables `find-reusable-builds` (line 310), so the workflow runs; `IS_CROSS_REPO_PR` is false inside the fork. Requires the workflow's secrets on the fork (`INFURA_PROJECT_ID`, `TEST_SRP_*` for benchmarks; `vars.`-gated Sentry/AWS steps skip cleanly) and a fork sync first. **State fork-scope in the published evidence** — it proves the workflow logic, not a run on the canonical repo. Detail: `exogram-daemon/memory/ci-workflow-pr-self-validation-gap.md`.
 
 ---
 
@@ -242,6 +262,8 @@ COOKIE_NAME=grafana_session COOKIE_VALUE="$sess" COOKIE_DOMAIN=<host> \
 | a memory leak fixed / introduced | **C9 retention-path from code** (holder → held → boundary) | C7 heap-over-flow + retainer graph; falsifying lifecycle test |
 | an error/crash fixed | E1 Sentry rate→0 | B3 test, A1 if visible |
 | a dep change is safe | D3 LavaMoat + D4 manifest | D1 size; supply-chain-audit's patch/resolutions/ignore lanes |
+| a mechanical migration / "rename-only" refactor | **D6 substitution A/B** (authored artifact vs its authoritative source) | B3 if behavior-visible; D1 for accidental output change |
+| a hand-written type/schema/policy restates a source | **D6 substitution A/B** | G1 checks (as the *premise*: it compiles, which is why nobody noticed) |
 | runtime containment / SES / scuttling | **F8 runtime containment** (on the shipped variant) | D3 policy; E1 for `Lockdown failed` events |
 | persisted-state change | **F1 migration** | F2 vault |
 | tx/confirmation behavior | F3 simulation | B2 e2e |

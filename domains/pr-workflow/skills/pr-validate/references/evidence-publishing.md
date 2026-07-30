@@ -2,7 +2,7 @@
 
 How to take run artifacts + complementary evidence and write a clean, idempotent, reviewer-familiar section into the PR body — **matching AEP's own format** so a re-run replaces in place instead of stacking duplicates.
 
-Canonical source for the format: `packages/github/src/pr-body-builder.ts` (`upsertVisualValidationSection`) in the [AEP repo](https://github.com/MetaMask/metamask-autonomous-engineering-platform). Mirror it.
+Canonical source for the format: `~/Code/metamask/metamask-autonomous-engineering-platform/packages/github/src/pr-body-builder.ts` (`upsertVisualValidationSection`). Mirror it.
 
 > **Publishing is public and outward-facing. Always render the section and get explicit confirmation before writing the PR body. Use `publishEvidence: false` on the run; this manual flow is the only publish path.**
 
@@ -10,29 +10,24 @@ Canonical source for the format: `packages/github/src/pr-body-builder.ts` (`upse
 
 Control-plane artifact URLs (`localhost:3000/v1/runs/:id/artifacts/:name`) won't render on GitHub. Re-host each artifact and link the hosted URL.
 
-**Host: an object store or repo whose read access matches your audience.** Configure it once and
-reuse it; the examples below assume an S3 bucket exposed through an environment variable:
-
-```bash
-# set these to a bucket you control whose `public/` prefix allows anonymous GetObject
-EVIDENCE_BUCKET=<your-bucket>
-EVIDENCE_BASE="https://$EVIDENCE_BUCKET.s3.<region>.amazonaws.com"
-```
+**Host: the S3 bucket `majorlift-artifacts-share`, prefix `public/`.**
 
 ```
-s3://$EVIDENCE_BUCKET/public/metamask/pr-<n>/<run-id>/<artifact-name>
-$EVIDENCE_BASE/public/metamask/pr-<n>/<run-id>/<artifact-name>
+s3://majorlift-artifacts-share/public/metamask/pr-<n>/<run-id>/<artifact-name>
+https://majorlift-artifacts-share.s3.us-west-1.amazonaws.com/public/metamask/pr-<n>/<run-id>/<artifact-name>
 ```
 
-Allow anonymous `GetObject` under `public/*` but not bucket listing, so the prefix is not
+Anonymous `GetObject` is allowed under `public/*`; bucket listing is not, so the prefix is not
 browsable — link individual files, and don't promise readers an index.
 
-**Do NOT re-host to a personal repo.** A personal private repo returns 404 for every reader but
-its owner, so every raw link to it is dead on arrival.
+**Do NOT re-host to `MajorLift/metamask-extension-skills`.** It is a **personal private** repo:
+every raw link to it returns 404 for every reader but its owner. That was the previous target
+here, and this file simultaneously said links to it were unreachable — guidance that instructed
+you to publish dead links. Verified live in a published artifact.
 
-The test is **audience-reachability, not public-vs-private.** An org repo that is private but
-readable by colleagues is fine for an internal-audience link. A personal repo is unreachable by
-colleagues *and* by the public, so it fails for every audience.
+The test is **audience-reachability, not public-vs-private.** A `MetaMask/*` org repo is private
+but readable by colleagues, so an internal-audience link to one is fine. A `MajorLift/*` personal
+repo is unreachable by colleagues *and* by the public, so it fails for every audience.
 
 - Path convention: `pr-<n>/<run-id>/<artifact-name>` keeps runs from colliding.
 - **Verify unauthenticated before shipping**: `curl -s -o /dev/null -w "%{http_code}"` on each
@@ -40,8 +35,8 @@ colleagues *and* by the public, so it fails for every audience.
 
 ```bash
 RUN_ID=<id>; PR=<n>; CP=localhost:3000
-BUCKET="$EVIDENCE_BUCKET"
-BASE="$EVIDENCE_BASE"
+BUCKET=majorlift-artifacts-share
+BASE="https://$BUCKET.s3.us-west-1.amazonaws.com"
 for name in <artifactName1> <artifactName2>; do
   curl -fsS "$CP/v1/runs/$RUN_ID/artifacts/$name" -o "/tmp/$name"
   key="public/metamask/pr-$PR/$RUN_ID/$name"
@@ -109,9 +104,9 @@ Screenshots block (injected into `### After`, or appended under `### Screenshots
 <!-- AEP_SCREENSHOTS_START -->
 <details open><summary><artifact-name></summary>
 
-<img alt="<artifact-name>" src="<hosted artifact URL>" width="420" />
+<img alt="<artifact-name>" src="<raw.githubusercontent URL>" width="420" />
 
-[Open full-size image](<hosted artifact URL>)
+[Open full-size image](<raw URL>)
 
 </details>
 <!-- AEP_SCREENSHOTS_END -->
@@ -121,15 +116,15 @@ Screenshots block (injected into `### After`, or appended under `### Screenshots
 
 ## Step 3 — Choose the surface by ownership, then publish
 
-**Publish surface depends on your relationship to the PR.** Determine it FIRST:
+**Publish surface depends on my relationship to the PR** (see exogram
+`pr-validate-publish-surface-by-ownership`). Determine it FIRST:
 
 ```bash
 PR=<n>; REPO=MetaMask/metamask-extension
-ME=$(gh api user --jq .login)
-SURFACE=$(gh pr view "$PR" --repo "$REPO" --json author,commits --jq --arg me "$ME" '
-  if .author.login==$me then "body"
-  elif ([.commits[] | select(.authors[].login==$me)
-         | select([.authors[].login] | map(select(.!=$me and .!="Copilot" and (test("claude|anthropic")|not))) | length == 0)] | length) > 0
+SURFACE=$(gh pr view "$PR" --repo "$REPO" --json author,commits --jq '
+  if .author.login=="MajorLift" then "body"
+  elif ([.commits[] | select(.authors[].login=="MajorLift")
+         | select([.authors[].login] | map(select(.!="MajorLift" and .!="Copilot" and (test("claude|anthropic")|not))) | length == 0)] | length) > 0
   then "comment" else "skip" end')
 ```
 
@@ -236,6 +231,7 @@ The common loop — a run refutes a claim, the author pushes a fix, `/pr-validat
 - New head → **new hosted artifact directory keyed to the fix commit** (`pr-<n>/fix-<sha>/`), commit-pinned raw URLs; never overwrite a prior run's published files.
 - Residuals the fix intentionally leaves get their own row/section — don't round a fixed-with-residual claim up to fully proven.
 
+Source of truth: `exogram-core/memory/pr-validate-revalidation-delta-reports.md`.
 
 ## Lead with a lane-status ledger (no silent absence)
 
@@ -270,7 +266,34 @@ Per-lane rendering:
 
 Multi-claim PRs get one sub-block per claim under the status section, each with its own ✅/❌/⚠️ verdict — mirror the Claim Cards. Keep the visual block (markers + `### After` injection) for the image lanes; render the rest as text beneath it.
 
-**Per-scenario presentation (2026-07-21):** the same applies one level down — when the evidence spans multiple test scenarios (flag-on vs flag-off, control vs treatment in an A/B falsifier, numbered manual-testing steps), give each scenario its **own sub-section**: a heading naming the scenario in observation terms, one line on what it tests plus its verdict, and that scenario's artifacts co-located under it. Never bunch all scenarios' artifacts into one large evidence dump — the reviewer verifies "under condition X, artifact shows Y" one condition at a time, and a merged block destroys that mapping even when every artifact is real. For long artifact sets use a `<details>` block *per scenario*, not a merge. 
+### One comment per evidence *kind*, not one comment per PR (2026-07-30)
+
+Sub-blocks are for several claims **of the same kind**. When a PR draws two different
+kinds — say an executed Validation Run *and* a read-level capability triage — they get
+**separate comments**, each with its own header, its own marker pair, and its own format.
+
+| | Validation Run | LavaMoat policy diligence |
+|---|---|---|
+| header | `## 🧪 Validation Run` | `## 🔒 LavaMoat Grants — <pkg> <old> → <new>` |
+| markers | `VALIDATION_RUN_*` | `LAVAMOAT_DILIGENCE_*` |
+| opens on | `**Verdict:** ✅/⚠️/❌` | the finding; **no verdict at all** |
+| body | lane ledger, artifacts per lane | deny candidates, enumeration folded |
+| audience | whoever owns the PR's claim | whoever owns the policy |
+
+Merging them forces one frame onto both. A read-level triage has no run to verdict, so it
+would land as `⚠️ inconclusive` on a header promising a run; and a `⏳ not-captured` lane
+needs a tracker it does not have. The marker pairs also collide — a re-run replacing the
+`VALIDATION_RUN` region would silently eat the diligence output sharing it.
+
+**So: choose the format from the evidence kind, not from this document's default.** The
+canonical `## 🧪 Validation Run` header applies when a run produced artifacts. An engine
+skill that defines its own output contract (`lavamoat-policy-diligence`) publishes in that
+contract. `hooks/pr-evidence-gate.py` enforces the canonical literal only on bodies that
+*claim* validation/evidence framing — a diligence comment that renders no verdict does not
+trip it, which is the tell that the two are different artifacts rather than one with a
+different skin.
+
+**Per-scenario presentation (2026-07-21):** the same applies one level down — when the evidence spans multiple test scenarios (flag-on vs flag-off, control vs treatment in an A/B falsifier, numbered manual-testing steps), give each scenario its **own sub-section**: a heading naming the scenario in observation terms, one line on what it tests plus its verdict, and that scenario's artifacts co-located under it. Never bunch all scenarios' artifacts into one large evidence dump — the reviewer verifies "under condition X, artifact shows Y" one condition at a time, and a merged block destroys that mapping even when every artifact is real. For long artifact sets use a `<details>` block *per scenario*, not a merge. (Preference: exogram-core `memory/pr-validate-present-scenarios-separately.md`; instance #44610.)
 
 ## Artifact contract (ADR-0058 alignment)
 
@@ -283,7 +306,7 @@ To stay interoperable with the recipe-based verification system (MetaMask/decisi
 - [ ] Each lane passed the [trustworthiness gate](evidence-trustworthiness.md) (shows the claimed surface, signal &gt; noise, could-have-failed)
 - [ ] Multi-scenario evidence rendered **per scenario** (own heading + verdict + co-located artifacts), not bunched into one block
 - [ ] **Automated-process voice, no first person** — published validation output never says "I ran/captured/verified"; attribute to the process ("Automated validation ran…", "the harness captured…") so readers know the evidence is machine-generated, not a manual account under the author's name
-- [ ] Every image/GIF re-hosted to your configured evidence host; no localhost/local-path URLs in the body
+- [ ] Every image/GIF re-hosted to `majorlift-artifacts-share/public/…`; no localhost/local-path URLs in the body
 - [ ] **Every published link curl'd unauthenticated and returning 200** — never a personal private repo
 - [ ] Work cited by **PR link** rather than tracking-ticket id, unless the ticket's own content (an RCA, a spec) is the referent
 - [ ] Narrative scrubbed of username/paths/internal hosts
