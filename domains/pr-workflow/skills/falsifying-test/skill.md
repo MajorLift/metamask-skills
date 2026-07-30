@@ -1,0 +1,86 @@
+---
+name: falsifying-test
+description: Produce the strongest single proof that a fix targets the reported bug — a test that fails on the base commit and passes on the branch, with both runs shown. The falsifier is a test that fails on base for the wrong reason (import error, missing fixture, unrelated breakage) rather than by asserting the bug; that failure looks identical in an exit code and proves nothing. Also covers the diagnostic case: if no test can be written that fails on base, the fix's connection to the reported bug is the thing in doubt. Triggers on /falsifying-test, or when asked to write a regression test for a fix, prove a bug fix works, show a test failing before and passing after, or check whether a PR's test actually covers its claim. Callable by pr-validate as the engine behind its falsifying regression test evidence category.
+maturity: experimental
+---
+
+# /falsifying-test
+
+Reach for this on **every bug-fix PR**. A test that passes on the branch proves the branch is
+green. A test that **fails on base and passes on the branch** proves the change is causally
+connected to the reported bug. Only the second is evidence, and the gap between them is where
+this skill lives.
+
+> **Falsifier.** A test that fails on base for a reason unrelated to the bug. A missing import,
+> a fixture the base commit doesn't have, a helper introduced by the branch, an unrelated
+> pre-existing failure — every one produces a red run and a non-zero exit code that looks
+> exactly like a correct falsification. **The exit code is not the evidence; the assertion
+> message is.**
+
+## Method
+
+1. **Write the test against the reported behaviour, not the diff.** Start from the issue's
+   reproduction. A test derived from reading the fix tends to assert the fix's mechanism and
+   will pass on base the moment the mechanism is reachable by other means — or fail on base
+   for structural reasons rather than behavioural ones.
+
+2. **Run it on base FIRST, and read the failure output.** Not the exit code — the message. It
+   must fail on the **assertion that encodes the bug**: an expected value that differs, a state
+   that wasn't reached, an event that didn't fire. If base fails with a
+   `ModuleNotFoundError`, a syntax error, or a helper that doesn't exist yet, you have not
+   falsified anything; you have discovered that the test can't run there.
+
+3. **Pin the base explicitly.** Use the PR's actual merge-base, not whatever `main` points at
+   today. `main` moves; a re-run weeks later against a drifted `main` is a different
+   experiment and may fail for reasons that have nothing to do with the fix.
+
+4. **Make the test runnable on base.** When the test needs a helper or fixture the branch
+   introduces, split it: land the scaffolding in a form that exists on both sides, or inline
+   the setup so the test file is self-contained. If that's impossible, say so and downgrade the
+   claim — a test that *cannot* run on base gives a branch-only pass, which is a weaker piece
+   of evidence and should not be presented as a falsifying one.
+
+5. **Confirm it fails for one reason, not several.** If base has unrelated failures in the same
+   file or suite, scope the run to the new test (by name/path) so the red is attributable. A
+   suite that was already red proves nothing about your assertion.
+
+6. **Show both runs.** Base: the assertion failure, verbatim. Branch: the pass. Same command,
+   same filter, both commits identified. Captured terminal output beats a transcription —
+   retyped output is a self-report, and a real capture has caught errors that careful prose
+   missed.
+
+7. **Pair it with the issue.** The PR's `Fixes #N` plus a test named for the behaviour makes
+   the causal chain checkable by a reader who runs nothing.
+
+## When you can't write one
+
+This is a finding, not a gap to paper over. If no test fails on base, one of these is true:
+
+- **The bug isn't where the fix is.** The most common case, and the reason to run this check
+  before review rather than after.
+- **The reported behaviour isn't reproducible in the harness** — timing, environment, or a
+  real-device dependency. Say which, and reach for a different evidence category (a
+  deterministic interleaving test for ordering bugs, an e2e trace for environment-dependent
+  ones).
+- **The fix is a refactor or hardening change, not a bug fix.** Fine — then the PR's claim
+  should say that, and this category doesn't apply.
+
+State which one. "No test added" with no explanation reads as an omission; the diagnosis is
+useful information about the change.
+
+## Output
+
+```
+Falsifying test — <test name>  (Fixes #N)
+  base   <sha>  FAIL   <the assertion line, verbatim>
+  branch <sha>  PASS
+  command: <exact command, same on both>
+  scoped: <how the run was limited to this test>
+```
+
+## Related
+
+- `pr-validate` — packages this skill's output as its B3 evidence category; B7 (deterministic
+  interleaving) is the sibling for concurrency and temporal-ordering bugs.
+- `react-render-proof` — the same before/after discipline applied to a measured quantity
+  rather than a boolean.
