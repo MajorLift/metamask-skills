@@ -1,7 +1,6 @@
 ---
 name: pr-validate
 description: Validate a MetaMask PR with objective evidence — primarily the Autonomous Engineering Platform (AEP) harness (visual_validation for visible UI behavior, perf_validation for non-visible perf behavior), backed by complementary evidence (Sentry query links, screenshots, screen recordings→GIF, DevTools/CDP output, bundle-size, web-vitals, test/CI results). Drives the AEP local stack end to end: preflight (postgres + temporal + worker + control-plane) → submit POST /v1/tasks → poll GET /v1/runs/:id → fetch artifacts → assemble an evidence bundle → publish to the PR body (re-hosting images to a public repo, scrubbing local paths). Match evidence to the PR's specific falsifiable claim, not a fixed checklist. Triggers on /pr-validate, /pr-validate visual, /pr-validate perf, /pr-validate preflight, /pr-validate status, /pr-validate evidence, /pr-validate plan, or when the user mentions validating/proving a PR, AEP / visual validation / perf validation, capturing evidence for a PR, before/after screenshots, a screen recording or GIF for a PR, attaching Sentry links or DevTools output as proof, or publishing an evidence bundle to a PR body.
-maturity: experimental
 ---
 
 # /pr-validate
@@ -18,7 +17,7 @@ Twenty rules the rest of this skill implements. When a situation isn't covered b
 
 **What you may claim**
 - **Falsifiability** — name the observation that would disprove the claim, then go looking for it. A review that cannot fail is not a review.
-- **Falsifier coverage is not exhaustive — human intervention point.** There is no fixed checklist, so there is no completeness guarantee: the falsifiers found are bounded by claim-extraction quality and by what the reviewer thought to test. "No falsifier fired" is not "no falsifier exists." A human judges whether the falsifier chosen matches the claim's actual risk, and whether a mixed or high-stakes claim needed more than one — this skill closes the falsifiers it finds, it does not attest that it found all of them.
+- **Falsifier coverage is not exhaustive — human intervention point.** There is no fixed checklist, so there is no completeness guarantee: the falsifiers found are bounded by claim-extraction quality and by what the reviewer thought to test. "Nothing turned up" is not "there is nothing to find." A human judges whether the falsifier chosen matches the claim's actual risk, and whether a mixed or high-stakes claim needed more than one — this skill closes the falsifiers it finds, it does not attest that it found all of them.
 - **Diff-anchored** — the claim is what the code *can* do, not what the PR body promises. Drift between them is a finding, not a claim.
 - **Surface-specific, and a surface need not be a screen** — a job graph, a build artifact, a policy file, or a telemetry shape are all legitimate surfaces with their own falsifiers.
 
@@ -74,10 +73,10 @@ A claim must be falsifiable, surface-specific, **anchored to the diff** (if the 
 | Telemetry / error-rate / latency in prod | **E1 Sentry links** (before/after) | E2 Tempo; span-volume → `/sentry-quota` |
 | Bundle / build output | **D1 size · D2 chunk membership** | — |
 | A dependency change is safe | **D3 LavaMoat policy + D4 manifest diff** | D1 size |
-| Runtime containment still holds | **F8 SES lockdown / scuttling, on the shipped variant** | D3 policy |
 | Persisted-state change | **⭐ F1 migration** (`changedKeys`, old→new state) | F2 vault round-trip |
 | Tx / dapp / flag / snap / i18n behavior | **F3 sim · F4 provider · F5 flag matrix · F6 snaps · F7 i18n** | B2 e2e trace |
 | Behavior with no UI | **B3 test + G4 repro** | G1 CI checks |
+| Mechanical migration / "rename-only" refactor; a hand-written type/schema/constant/policy that restates a source | **⭐ D6 substitution A/B** at a fixed head (`compare` arm kind `substitution`) | B3 if behavior-visible; D1 for accidental output change |
 
 Lane IDs (A1, B3, …) index [references/evidence-catalog.md](references/evidence-catalog.md) — the full menu with verified capture commands and the complete matching guide. When a PR mixes claims (a UI fix that also shifts a metric), run more than one lane and assemble them into one bundle.
 
@@ -97,35 +96,43 @@ Not for code-correctness review (use `/review`, `/code-review`) or span-quota re
 | `/pr-validate <pr>` | **Flagship.** Read the PR → state the claim → pick lanes → [preflight](#preflight) → run AEP lane(s) + gather complementary evidence → assemble bundle → **propose** the PR-body section and confirm before publishing. |
 | `/pr-validate plan <pr>` | Dry run: read the PR, state the claim, recommend lanes + targeting hints. No stack, no run. Cheap first step when unsure. |
 | `/pr-validate visual <pr>` | AEP `visual_validation` only. |
-| `/pr-validate perf <pr>` | AEP `perf_validation` only — check the graph is present first, see [caveat](#perf_validation-caveat). |
+| `/pr-validate perf <pr>` | AEP `perf_validation` only (local/uncommitted graph — see [caveat](#perf_validation-caveat)). |
 | `/pr-validate preflight` | Health-check the local stack; bring up what's down. No run. |
 | `/pr-validate status <run-id>` | Poll `GET /v1/runs/:id`; print stage timeline + `evidenceBundle.artifactRefs`. |
 | `/pr-validate evidence <pr> [--run <id>]` | Assemble + publish a bundle from an existing run and/or complementary sources (Sentry/screens/devtools). No new AEP run. |
 | `/pr-validate lane <id> <pr>` | Run a single [catalog](references/evidence-catalog.md) lane by id (e.g. `lane F1`, `lane C3`, `lane D3`) — for the non-AEP lanes where you know the claim type. |
-| `/pr-validate compare <pr>` | Paired A/B for a perf or refactor claim: build base + head, capture the lane on both, diff. Avoids the stale-baseline trap (catalog C5). **Per-arm treatment check first:** verify the mechanism under test is actually active in each arm (chunk split present, span emitted, flag evaluated) before interpreting deltas — a null arm without delivered treatment is a no-op, not a control (2026-07-22, #42795 bisect lesson). |
+| `/pr-validate compare <pr>` | Paired A/B for a perf or refactor claim. Two arm kinds — pick by what the claim varies: **`ref`** (default) builds base + head, captures the lane on both, diffs; avoids the stale-baseline trap (catalog C5). **`substitution`** holds a **fixed head** and varies one *artifact* instead of the ref — replace the PR's hand-written type/schema/constant/policy with the authoritative equivalent and diff a checker's output (catalog D6); no build, no rebase, no merge boundary. **Per-arm checks first, one per kind:** for `ref`, verify the mechanism under test is actually active in each arm (chunk split present, span emitted, flag evaluated) — a null arm without delivered treatment is a no-op, not a control (2026-07-22, #42795 bisect lesson). For `substitution`, verify the unmodified arm is **silent** and that each diagnostic fires for the reason claimed — a noisy Arm A destroys attribution, and a diagnostic tripping one property early scores as a confirmation it isn't (trustworthiness gate item 19; 2026-07-30, #44397). |
 
 `<pr>` is a number or URL on `MetaMask/metamask-extension` unless another repo is given. Every variant runs Step 1 (extract the Claim Card) first — the claim decides the lane, even when you named one.
 
 ## Preflight
 
-The AEP harness runs as a local stack: postgres, a temporal server, a worker, and a control plane. Bring-up steps, required Node version, registry auth, and environment are documented in the [AEP repository](https://github.com/MetaMask/metamask-autonomous-engineering-platform) itself — follow its README rather than a copy here, which drifts. Health-check first and bring up only what is down.
+The hosted AEP doesn't resolve (`aep.dev.web3factory.consensys.net` is dead as of 2026-06). Everything runs locally. Health-check, then bring up only what's down. **Full procedure + every gotcha: [references/aep-local-run.md](references/aep-local-run.md).** Skim it before a first run in a session — each bullet there cost a failed run.
 
 Fast checks:
 
 ```bash
+AEP=~/Code/metamask/metamask-autonomous-engineering-platform
 curl -fsS localhost:3000/health >/dev/null && echo "control-plane up"   || echo "control-plane DOWN"
 curl -fsS localhost:8233 >/dev/null && echo "temporal UI up"            || echo "temporal DOWN"
-docker ps --format '{{.Names}}' | grep -E 'aep-postgres|aep-temporal'
+docker ps --format '{{.Names}}' | grep -E 'mm-aep-postgres-dev|mm-aep-temporal-dev'
 ```
 
-If the control plane answers on `localhost:3000/health`, the stack is ready and you can skip to *Run mechanics*.
+Bring-up order (each in its own shell; details + env in the reference):
+1. `yarn dev:postgres` (docker `postgres:16-alpine`, `mm-aep-postgres-dev`, port 5432)
+2. `yarn dev:temporal` (temporal dev server; UI on 8233)
+3. `yarn db:migrate`
+4. **worker** — `yarn dev:worker` on **Node ≥ 24.13**, env `ANTHROPIC_API_KEY=host-subscription`, `CLAUDE_CODE_EXECUTABLE=~/.local/bin/claude`, `GITHUB_TOKEN="$(gh auth token)"`, `SANDBOX_PROVIDER=local` (needs JFrog `npm login` first; relies on uncommitted local patches)
+5. `yarn dev:control-plane` (`localhost:3000`)
+
+If any of the local patches (`local-sandbox-adapter.ts` timeout, `claude-agent-runner.ts` auth, the `perf-validation/` graph) are missing from the working tree, the reference says how to restore them — `git status` in the AEP repo should show them modified/untracked.
 
 ## Teardown
 
 The stack is the heaviest thing this skill starts — postgres + temporal + a Node worker + control-plane — and the worker holds a live Claude session while the autonomous run itself spends tokens. It is **on-demand, not resident**: bring it up for the validation window, **tear it down when the run(s) finish**. Left up, it's the single largest reclaimable footprint on a shared host and quietly keeps a Claude seat warm.
 
-- **If your host wraps the stack in a service manager**, use its own down command — it stops the services and removes the `--rm` postgres/temporal containers, so state resets on the next bring-up (fine, each run is fresh anyway).
-- **Otherwise:** stop the `yarn dev:*` processes and remove the postgres/temporal containers.
+- **On a host managed by `aep-stack` (systemd):** `aep-stack up` to preflight, **`aep-stack down` when done** — stops the services; the `--rm` postgres/temporal containers are removed, so state resets on the next `up` (fine — each run is fresh anyway).
+- **Otherwise:** stop the `yarn dev:*` processes and `docker rm -f mm-aep-postgres-dev mm-aep-temporal-dev`.
 - **Tear down on every exit path** — pass, refutation, *or* abort. A failed or abandoned run leaves the stack up exactly as much as a passing one; the usual leak is walking away after a refutation without stopping it.
 
 ## Run mechanics (submit → poll → fetch)
@@ -159,7 +166,7 @@ curl -fsS "$CP/v1/runs/$RUN_ID/artifacts/<artifactName>" -o /tmp/<artifactName>
 
 ### Concurrent runs (multiple agents / parallel lanes)
 
-Five shared resources need per-run isolation on one machine — collisions cross-contaminate evidence *silently* (wrong session's logs attributed to a run), which is an integrity failure, not flakiness: **(1)** CDP debug ports — derive per run, never hardcode; **(2)** e2e harness service ports (anvil/proxy/fixture/mocha) — one e2e run at a time per worktree, one worktree per agent, and never rebuild `dist/` in a worktree with an active run; **(3)** artifact dirs — per-run namespaces; `test-artifacts/` is per-worktree shared state, harvest failure artifacts before the next run overwrites the same test-title dir; **(4)** evidence-repo uploads — run-scoped paths (`pr-<n>/<run-id>/`), retry-with-fresh-sha on 409, never overwrite another run's published files; **(5)** commit-pinning — pin only after your own final upload lands, verifying your files exist at that sha. Safe to share: registry auth, a read-only `dist/`, the AEP stack itself.
+Five shared resources need per-run isolation on one machine — collisions cross-contaminate evidence *silently* (wrong session's logs attributed to a run), which is an integrity failure, not flakiness: **(1)** CDP debug ports — derive per run, never hardcode; **(2)** e2e harness service ports (anvil/proxy/fixture/mocha) — one e2e run at a time per worktree, one worktree per agent (`wt new`), and never rebuild `dist/` in a worktree with an active run; **(3)** artifact dirs — per-run namespaces; `test-artifacts/` is per-worktree shared state, harvest failure artifacts before the next run overwrites the same test-title dir; **(4)** evidence-repo uploads — run-scoped paths (`pr-<n>/<run-id>/`), retry-with-fresh-sha on 409, never overwrite another run's published files; **(5)** commit-pinning — pin only after your own final upload lands, verifying your files exist at that sha. Safe to share: JFrog login, a read-only `dist/`, the AEP stack itself.
 
 ### Trust the evidence (anti-reward-hacking)
 
@@ -167,12 +174,7 @@ A green result is not proof. The vacuous-pass trap is the floor: if `promptCraft
 
 ### perf_validation caveat
 
-The `perf-validation/` graph writes falsifiable network/static/smoke assertions and gives the tester deterministic `.aep/` helpers (CDP netlog, phase segmentation, source-map chunk membership). Two constraints worth knowing before a perf run:
-
-- It requires a `yarn webpack --test` build first — the browserify `build:test` has no code splitting, so `import()` never hits the network there.
-- Temporal caps activity results at ~2MB, so artifact refs must be content-free; only `evidenceBundle` carries base64.
-
-**Check the graph is present in your AEP checkout before relying on it.** It is newer than the visual-validation graph and may not be in every version — if it isn't registered, perf runs silently won't dispatch, and the fallback is manual DevTools/CDP capture (see the catalog).
+The `perf-validation/` graph is **uncommitted local AEP work** (added 2026-06-11). It writes falsifiable network/static/smoke assertions and gives the tester deterministic `.aep/` helpers (CDP netlog, phase segmentation, source-map chunk membership). It requires a `yarn webpack --test` build first (the browserify `build:test` has no code splitting, so `import()` never hits the network there). Temporal caps activity results at ~2MB — artifact refs must be content-free; only `evidenceBundle` carries base64. If the graph isn't in the working tree, perf runs won't register — fall back to manual DevTools/CDP capture (catalog).
 
 ## Complementary evidence
 
@@ -182,7 +184,6 @@ AEP is primary but rarely sufficient alone. Pull whatever the claim needs — **
 - **B. Behavior & flow** — mm-CLI visual, E2E trace+video, **⭐ falsifying regression test** (fails on main, passes on branch — the strongest bug proof), Storybook/component, a11y, flaky-stability rerun.
 - **C. Performance & render** — startup/custom traces, web-vitals (**INP/FCP/LCP/CLS** via `stateHooks`), long-task **TBT** (separate observer), React render/selector (WDYR), benchmark A/B (paired), DevTools/CDP profiling, memory-over-flow, **same-window app+DevTools capture** (C8 — UI + console evidence in one frame, OS-level region recording).
 - **D. Build output** — bundle-size, chunk membership, **LavaMoat policy diff**, manifest permissions diff, build-variant matrix.
-  (Runtime containment — SES lockdown, scuttling, Snow — is **F8**, not D: D is what the build *permits*, F8 is what the running artifact *enforces*.)
 - **E. Production telemetry** — Sentry links (span-volume → `/sentry-quota`), Tempo traces, error-event shape.
 - **F. Extension integrity** — **⭐ state migration**, vault/keyring, tx simulation, provider/dapp, feature-flag matrix, snaps, i18n.
 - **G. CI/review/process** — check links, coverage delta, reviewer bot, manual repro.
@@ -196,7 +197,7 @@ Match the bar to the claim; stop when the claim's falsifier is closed. Don't ove
 - **One lead lane that closes the falsifier** is enough for low-risk, single-claim PRs (a copy fix → one screenshot; a bug fix → the falsifying test).
 - **Weigh AEP's cost before reaching for it.** A `visual_validation`/`perf_validation` run spins the full stack *and* burns autonomous-agent tokens — by far the most expensive lane. Use it when the claim genuinely needs autonomous capture of a reachable surface; when a lighter lane closes the same falsifier (a single `mm` screenshot, a falsifying test, a CDP capture, an artifact CI already produced), prefer it and skip the stack. Whenever you do start it, tear it down after (see [Teardown](#teardown)).
 - **Lead + one corroborator** for perf/telemetry (a number *and* its source) and for anything user-facing that also moves a metric. **For a perf-targeting PR the lead lane is the measured impact itself** — a paired A/B benchmark at the current head (C5) or equivalent — never mechanism evidence alone (chunk membership, netlog exclusion prove the improvement is *possible*, not that it *happened*). A perf PR also always carries correctness + non-regression lanes: changed-surface tests green at head, affected flows exercised, neutral profile within noise. (2026-07-22, #42795 lesson.)
-- **Lead + integrity lane** for high-stakes surfaces regardless of size: persisted-state (migration + vault), money (tx simulation), permissions (LavaMoat + manifest), runtime containment (SES lockdown / scuttling), security/keyring. Size-S doesn't lower the bar here.
+- **Lead + integrity lane** for high-stakes surfaces regardless of size: persisted-state (migration + vault), money (tx simulation), permissions (LavaMoat + manifest), security/keyring. Size-S doesn't lower the bar here.
 - **Per-claim** for mixed PRs — each Claim Card needs its own closed falsifier; a strong UI proof doesn't cover the metric it also shifts.
 - **Rely on CI for routine coverage — don't re-collect what CI already establishes.** Lint, build, typecheck, the full test suite, changelog validation: CI is the authoritative source; **cite the check result** (e.g. "423 pass / 0 fail at head") instead of re-running it locally. Spend independent evidence only on (a) the claim's load-bearing falsifier, (b) specifically important/noteworthy areas (security, money, permissions, the exact changed surface), or (c) where the trust-gate warns a green result could be vacuous/misattributed. This is the economy counterpart to *"don't trust green blindly"*: that gate polices the **claim-critical** lane; this rule spares the **routine** coverage — re-collecting what CI covers is bundle noise. (#9628: cited CI's pass matrix for build/test, ran independent evidence only for the load-bearing homogeneity + resolution lanes.)
 
@@ -207,10 +208,10 @@ Stop when each claim has one trustworthy artifact that would have shown its fals
 **Public, outward-facing action — always confirm the rendered section with the user before writing the PR body.** Match AEP's own format so the section is idempotent and reviewer-familiar. Full recipe (markers, image re-hosting, recordings, the `### After` injection, privacy scrub): **[references/evidence-publishing.md](references/evidence-publishing.md).** Essentials:
 
 - **Canonical header — every validation output leads with the exact literal `## 🧪 Validation Run`.** Same string in a PR comment and in the PR-body section, never reworded or demoted — the constancy is what makes it scannable/Ctrl-F-able, like Copilot's fixed `## Pull request overview`. Line 2 is the meta line: `**Verdict:** ✅ proven — **Claim:** <one-liner>` then `head \`<sha>\` · <date> · lanes: <list>`. Enforced mechanically by `hooks/pr-evidence-gate.py` (a validation/verification/evidence heading or AEP marker without the literal blocks the `gh` write).
-- **Post complete, once — and know which regime the surface is in.** Comments are **push** (audience notified once at post time; edits are silent): hold until every planned lane is present or consciously dropped, and put substantive additions or changed verdicts in a **new comment referencing the original**, never a silent edit. The PR **body** is **pull** (consulted at review time): the idempotent marker upsert on re-validation at a new head is correct there. Typo-level comment edits are fine.
+- **Post complete, once — and know which regime the surface is in.** Comments are **push** (audience notified once at post time; edits are silent): hold until every planned lane is present or consciously dropped, and put substantive additions or changed verdicts in a **new comment referencing the original**, never a silent edit. The PR **body** is **pull** (consulted at review time): the idempotent marker upsert on re-validation at a new head is correct there. Typo-level comment edits are fine. (Decision: `exogram-core/decisions/2026-07-23-publish-complete-bundles.md`; framework: Reprise `push-pull-artifact-edit-regimes`.)
 - **Falsifier-forward.** After the meta line, foreground **what would have falsified the claim and how each falsifier is closed** — the falsifier is the load-bearing content, not a footnote. Structure the body as "what would make this false → the evidence that rules it out," not a lane inventory with a `falsifiers closed` line buried at the bottom. The reviewer should see the disproof attempt first.
 - **Don't restate CI results.** Lint/build/typecheck/test/changelog outcomes are already on the PR's Checks tab — the reviewer sees them. Cite a CI result in the comment only to **highlight something specific** they'd otherwise miss; otherwise reference "green in Checks" or omit it. Restating "423 pass / 0 fail" is bundle noise (the display-side counterpart to the catalog's *rely on CI* collection rule).
-- **Re-host images first.** Control-plane artifact URLs are `localhost` and won't render on GitHub. Re-host each artifact somewhere **your readers can reach unauthenticated**, then link the hosted URL — see [evidence-publishing.md](references/evidence-publishing.md) for the host choice and the mandatory unauthenticated `curl` check. A personal repo or a private bucket fails this for every reader but you.
+- **Re-host images first.** Control-plane artifact URLs are `localhost` and won't render on GitHub. Push to the public `MajorLift/metamask-extension-skills` repo, branch `aep-evidence`, via the contents API; link the `raw.githubusercontent.com` URLs.
 - **Use idempotency markers** so a re-run replaces in place: wrap the whole section in `<!-- VALIDATION_RUN_START -->` … `<!-- VALIDATION_RUN_END -->`; inside it, AEP's own `<!-- AEP_VISUAL_VALIDATION_START/END -->` for the status block and `<!-- AEP_SCREENSHOTS_START/END -->` for images, injected into the PR template's `### **After**` section (replacing the `<!-- [screenshots/recordings] -->` placeholder) when present.
 - **Verdict-first, lanes nested:** under the canonical header, hand-assembled AEP blocks demote to `### AEP Visual Validation` (leave AEP's own service-published `##` blocks untouched) with `**✅ Passed**` / `**❌ Failed**` / `ℹ️`, the long narrative in `<details><summary>Validation details</summary>`, a meta line `Run \`<id>\` · [LangSmith trace](…)`.
 - **Scrub** local paths and your username from any narrative before publishing — failure summaries leak them.
@@ -258,7 +259,7 @@ PR claims privacy mode now hides the Perps balance (the demo bug #42683):
 2. Lane = `visual_validation` (visible). Preflight stack.
 3. Submit with `description: "Onboard, enable privacy mode in Settings, open the Perps tab, confirm the balance is masked. If the Perps tutorial modal blocks, use the Shield entry modal as the reachable surface."` + `publishEvidence:false`.
 4. Poll to completion; assert `artifactRefs` has the before/after pair (not a vacuous skip).
-5. Fetch the two PNGs; re-host them to your configured evidence host; assemble the `AEP_VISUAL_VALIDATION` section with the hosted URLs injected into the template's `### After`.
+5. Fetch the two PNGs; re-host to `aep-evidence`; assemble the `AEP_VISUAL_VALIDATION` section with the `raw.githubusercontent` URLs injected into the template's `### After`.
 6. Show the rendered section; on confirm, upsert the PR body.
 
 End-to-end examples for **non-visual** claims (perf, migration, flag-gated, refactor/no-op): **[references/worked-examples.md](references/worked-examples.md).**
@@ -269,7 +270,7 @@ Three adjacent things; keep the boundary clear so they compose instead of collid
 
 - **AEP** — governed *fleet orchestration*: sandboxes, Temporal, autonomous runs at scale. The heavy engine.
 - **ADR-0058 recipes** ([decisions#173](https://github.com/MetaMask/decisions/pull/173)) — a *dev-machine inner-loop* proof artifact: a declarative per-PR recipe run against the live app over CDP, emitting `summary.json`/`trace.json`/manifest.
-- **pr-validate** (this skill) — the *claim→evidence methodology + taxonomy* both draw on. The Claim Card is the bridge from a PR's claim to the right proof target; the [evidence catalog](references/evidence-catalog.md) is the lane vocabulary; [lane-assertions.md](references/lane-assertions.md) maps each lane to a recipe assertion (and flags the out-of-band, non-UI lanes — the gap raised in review on decisions#173).
+- **pr-validate** (this skill) — the *claim→evidence methodology + taxonomy* both draw on. The Claim Card is the bridge from a PR's claim to the right proof target; the [evidence catalog](references/evidence-catalog.md) is the lane vocabulary; [lane-assertions.md](references/lane-assertions.md) maps each lane to a recipe assertion (and flags the out-of-band, non-UI lanes — the gap MajorLift's #173 review raised).
 
 pr-validate is the one a human drives; it can dispatch an AEP run or author a recipe as its capture step.
 
@@ -287,7 +288,7 @@ Where pr-validate sits in the PR lifecycle (see the public `pr-workflow` sibling
 - **Executes, with a confirmation gate on publish.** It runs the harness and captures evidence autonomously; it does not write to the public PR body without showing you the section first.
 - **Local-only AEP.** No hosted instance. The skill drives the local stack.
 - **Proves behavior, not code.** Pair with `/review` / `/code-review` for correctness and `/sentry-quota` for span-volume risk.
-- **No persisted state.** Each run is fresh. To keep a validation record, ask — nothing is written by default.
+- **No persisted state.** Each run is fresh. To keep a validation record, ask — it can go to `exogram-daemon/`, but nothing writes by default.
 
 ## Related
 
@@ -297,9 +298,24 @@ Where pr-validate sits in the PR lifecycle (see the public `pr-workflow` sibling
 - [references/evidence-publishing.md](references/evidence-publishing.md) — PR-body format, non-visual/multi-lane rendering, image re-hosting, recordings→GIF, privacy scrub, ADR-0058 artifact contract.
 - [references/worked-examples.md](references/worked-examples.md) — end-to-end runs for perf / migration / flag-gated / refactor claims.
 - [references/lane-assertions.md](references/lane-assertions.md) — lane → declarative recipe-assertion mapping (ADR-0058 bridge).
-- [MetaMask/metamask-autonomous-engineering-platform](https://github.com/MetaMask/metamask-autonomous-engineering-platform) — the AEP repo: stack bring-up in its README, plus `docs/demo-runbook.md`, `packages/agent-chain/src/graphs/{visual,perf}-validation/`, and `packages/github/src/pr-body-builder.ts` (the canonical PR-body format this skill mirrors).
+- [references/aep-local-run.md](references/aep-local-run.md) — full local-stack bring-up + every gotcha.
+- `~/Code/metamask/metamask-autonomous-engineering-platform` — the AEP repo (`docs/demo-runbook.md`, `packages/agent-chain/src/graphs/{visual,perf}-validation/`, `packages/github/src/pr-body-builder.ts`).
 - `MetaMask/decisions#173` — ADR-0058 Recipe-Based Verification (the adjacent inner-loop proof system).
 - `/sentry-quota` — sibling skill for span-volume PR review; `/review`, `/code-review` — code correctness.
-- `/memory-leak-hunt` — the engine behind the **memory leak** evidence category (C9). pr-validate delegates retention analysis to it and packages the verdict; it also runs standalone.
+- **Engine skills — delegate the analysis, package the result.** Each owns a category in
+  [references/evidence-catalog.md](references/evidence-catalog.md); all run standalone too.
+
+  | category | engine |
+  |---|---|
+  | B3 falsifying regression test | `/falsifying-test` |
+  | B7 deterministic interleaving (concurrency / ordering) | `/race-condition-proof` |
+  | C4 React render & selector proof | `/react-render-proof` |
+  | C9 memory leak | `/memory-leak-hunt` |
+  | D supply-chain / dependency change | `/supply-chain-audit` → delegates capability grants to `/lavamoat-policy-diligence` |
+
+  **An engine that defines its own output contract publishes in it.** `lavamoat-policy-diligence`
+  is the live case: read-level triage, no verdict, its own header and marker pair. Do not
+  re-frame it as a Validation Run — see *One comment per evidence kind* in
+  [references/evidence-publishing.md](references/evidence-publishing.md).
 - [[reference_aep_local_run]] — the source memory this skill encodes.
 - [[reference_sentry_project_topology]] — Sentry project mapping for the telemetry-evidence lane.
