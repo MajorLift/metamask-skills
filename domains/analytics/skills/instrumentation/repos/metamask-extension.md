@@ -1,6 +1,6 @@
 ---
 repo: metamask-extension
-parent: analytics-instrumentation
+parent: instrumentation
 ---
 
 ## Key Files
