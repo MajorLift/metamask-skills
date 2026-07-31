@@ -44,7 +44,7 @@ Legend: **first-class lanes** are `##`-headed; closely-related variants are sub-
 - **Reach for it:** every bug-fix PR. If you can't write a test that fails on main, question whether the fix addresses the reported bug.
 
 ## B7. Deterministic interleaving test (concurrency / temporal-ordering) ⭐
-- **Engine:** `race-condition-proof` — run it rather than hand-rolling the harness.
+- **Engine:** `race-condition-repro` — run it rather than hand-rolling the harness.
 - **Proves:** an ordering guarantee under interleaving — retry, cancellation, supersession, debounce, locks, queues, async state machines — where the correctness *is* the ordering under races, not a value. Full category: `exogram-daemon/artifacts/evidence-taxonomy/category-concurrency-temporal-ordering.md`.
 - **Capture:** force each race deterministically — `jest.useFakeTimers()` + `advanceTimersByTimeAsync(DELAY)` to fire the delayed action at a known point; `Promise.all([opA, opB])` to overlap operations; `advanceTimersByTimeAsync(0)` to step to a precise interleaving point; then assert the ordering/cancellation outcome for **each** guarantee, including asymmetric ones (one path canceled → its recovery event `.not.toHaveBeenCalled()`; another must complete → `.toHaveBeenCalledWith(...)`). Corroborate with transition telemetry; for the integration path, a live forced-race capture (C8/CDP, the #44610 technique).
 - **Trust-gate:** the test must **actually interleave** — time advanced into the pending window, the superseding op injected *during* it. A sequential run exercises no race and is a vacuous green. Verify the interleaving, not just the assertion.
@@ -80,7 +80,7 @@ Legend: **first-class lanes** are `##`-headed; closely-related variants are sub-
 - **Capture:** `ui/helpers/utils/performance-observers.ts`; `window.stateHooks.getLongTaskMetricsWithTBT()` → `{count, totalDuration, maxDuration, tbt, tbtRating}`. TBT good<200 / needs-improvement<600 / poor>600. Sampled 10% prod / 100% test.
 
 ## C4. React render & selector proof
-  - **Engine: the `react-render-proof` skill.** Delegate the measurement to it; it runs the source/delivery/metric gates, derives the needle from real build output, repeats the capture, and returns a band (or "not resolvable at this n" with an MDE). evidence packages the result.
+  - **Engine: the `react-render-delta` skill.** Delegate the measurement to it; it runs the source/delivery/metric gates, derives the needle from real build output, repeats the capture, and returns a band (or "not resolvable at this n" with an MDE). evidence packages the result.
 - **Proves:** a component/selector stopped over-rendering (cascade-amplification before/after — exogram `react-redux-performance`).
 - **Capture:** WDYR via `ENABLE_WHY_DID_YOU_RENDER` (`.metamaskrc` or env) — wired in `app/scripts/development/wdyr.ts` (`trackAllPureComponents`); console logs each unnecessary re-render. `yarn devtools:react` for the Profiler flame graph. Selectors use `reselect`'s `createSelector`, which **does expose a real `.recomputations()` counter** — read it (sample on an interval if the count should visibly climb) rather than injecting a log into the selector body; an injected log is an authored claim, a library API is an observation. *(This entry previously said there was no built-in counter. There is.)*
 - **Bar:** the delivery check comes before the number. An arm whose manipulation cannot be observed in the built bundle produces a null indistinguishable from "small effect" — and reports as the second.
