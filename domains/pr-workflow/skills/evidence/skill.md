@@ -234,7 +234,7 @@ Where evidence sits in the PR lifecycle (see the public `pr-workflow` siblings):
 - **Executes, with a confirmation gate on publish.** It runs the harness and captures evidence autonomously; it does not write to the public PR body without showing you the section first.
 - **Local-only AEP.** No hosted instance. The skill drives the local stack.
 - **Proves behavior, not code.** Pair with `/review` / `/code-review` for correctness and `/sentry-quota` for span-volume risk.
-- **No persisted state.** Each run is fresh. To keep a validation record, ask — it can go to `exogram-daemon/`, but nothing writes by default.
+- **No persisted state.** Each run is fresh. To keep a validation record, ask — nothing writes by default.
 
 ## Related
 
