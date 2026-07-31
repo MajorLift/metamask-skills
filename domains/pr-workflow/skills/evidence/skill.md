@@ -256,12 +256,11 @@ Where evidence sits in the PR lifecycle (see the public `pr-workflow` siblings):
   | B3 falsifying regression test | `/falsifying-test` |
   | B7 deterministic interleaving (concurrency / ordering) | `/race-condition-proof` |
   | C4 React render & selector proof | `/react-render-proof` |
-  | C9 memory leak | `/memory-leak-hunt` |
+  | C9 memory leak | `/memory-leak` |
   | D supply-chain / dependency change | `/supply-chain-audit` → delegates capability grants to `/lavamoat-policy-diligence` |
 
   **An engine that defines its own output contract publishes in it.** `lavamoat-policy-diligence`
   is the live case: read-level triage, no verdict, its own header and marker pair. Do not
   re-frame it as a Validation Run — see *One comment per evidence kind* in
   [references/evidence-publishing.md](references/evidence-publishing.md).
-- [[reference_aep_local_run]] — the source memory this skill encodes.
-- [[reference_sentry_project_topology]] — Sentry project mapping for the telemetry-evidence lane.
+- [references/aep-local-run.md](references/aep-local-run.md) — the local-run procedure this skill encodes.
