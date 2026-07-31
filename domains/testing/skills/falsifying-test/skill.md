@@ -80,7 +80,8 @@ Falsifying test — <test name>  (Fixes #N)
 
 ## Related
 
-- `evidence` — packages this skill's output as its B3 evidence category; B7 (deterministic
-  interleaving) is the sibling for concurrency and temporal-ordering bugs.
+- `evidence` — packages this skill's output as its [falsifying regression test category](https://github.com/MetaMask/skills/blob/main/domains/pr-workflow/skills/evidence/references/evidence-catalog.md).
+  The deterministic-interleaving category is the sibling for concurrency and temporal-ordering
+  bugs; `race-condition-proof` drives it.
 - `react-render-proof` — the same before/after discipline applied to a measured quantity
   rather than a boolean.
