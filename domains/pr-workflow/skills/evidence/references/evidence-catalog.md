@@ -10,18 +10,17 @@ Legend: **first-class lanes** are `##`-headed; closely-related variants are sub-
 
 ## Lanes at a glance
 
-41 lanes in 7 families. Each lane below has a full spec in its own section — what it proves, how to capture it, and its trust gate. Family G is written as one-liners rather than full sections, because those lanes are links and counts rather than captures.
+43 lanes in 7 families. Each lane below has a full spec in its own section — what it proves, how to capture it, and its trust gate. Family G is written as one-liners rather than full sections, because those lanes are links and counts rather than captures.
 
 | Family | Lanes | |
 |---|---|---|
 | **A. AEP harness (primary, autonomous)** | 3 | `A1` visual_validation · `A2` perf_validation · `A3` AEP bundle byproducts |
 | **B. Behavior & flow proof** | 7 | `B1` Visual before/after via the mm CLI · `B2` E2E trace + video · `B3` Falsifying regression test · `B4` Component / Storybook visual · `B5` Accessibility · `B6` Flaky-stability rerun · `B7` Deterministic interleaving test |
 | **C. Performance & render** | 9 | `C1` Startup / custom traces + phase segmentation · `C2` Web vitals · `C3` Long-task / TBT · `C4` React render & selector proof · `C5` Benchmark A/B · `C6` DevTools / CDP profiling · `C7` Memory stability over a flow · `C8` Same-window app + DevTools capture · `C9` Retention-path analysis |
-| **D. Build output** | 6 | `D1` Bundle-size diff · `D2` Chunk membership / source-map · `D3` LavaMoat policy / supply-chain capability diff · `D4` Manifest permissions diff · `D5` Build-variant matrix · `D6` Authored-vs-authoritative substitution A/B |
+| **D. Build** | 7 | `D1` Bundle-size diff · `D2` Chunk membership / source-map · `D3` LavaMoat policy / supply-chain capability diff · `D4` Manifest permissions diff · `D5` Build-variant matrix · `D6` Authored-vs-authoritative substitution A/B · `D7` Build & rebuild duration A/B |
 | **E. Production telemetry** | 3 | `E1` Sentry query links · `E2` Tempo distributed traces · `E3` Sentry error-event / breadcrumb shape |
 | **F. Extension integrity (high-stakes, extension-specific)** | 8 | `F1` State migration / upgrade · `F2` Vault / keyring round-trip · `F3` Transaction simulation / gas · `F4` Provider / dapp connectivity · `F5` Feature-flag matrix · `F6` Snaps / multichain execution · `F7` i18n usage · `F8` SES lockdown / runtime containment |
-| **G. CI, review & process** | 5 | `G1` CI check links · `G2` Coverage delta · `G3` Automated-reviewer output · `G4` Manual reproduction steps · `G5` CI-workflow change, run on a test fork |
-
+| **G. CI, review & process** | 6 | `G1` CI check links · `G2` Coverage delta · `G3` Automated-reviewer output · `G4` Manual reproduction steps · `G5` CI-workflow change, run on a test fork · `G6` CI job-duration delta |
 ---
 
 # A. AEP harness (primary, autonomous)
@@ -158,7 +157,7 @@ COOKIE_NAME=grafana_session COOKIE_VALUE="$sess" COOKIE_DOMAIN=<host> \
 - **Corroborate:** a falsifying lifecycle test (force the boundary, assert release — listener count zero, singleton nulled, collection drained); C7 heap-over-flow with the **retainer graph naming the same path** the static argument named.
 - **Trust-gate:** the triple must be specific ("this listener holds `patchStore` after `patchStore.destroy()`", not "might leak"); distinguish **bounded staleness vs unbounded growth** (severity differs); attribute **introduced vs pre-existing** honestly.
 
-# D. Build output
+# D. Build
 
 ## D1. Bundle-size diff
 - **Proves:** the build grew/shrank by a measured amount. Use the bundle-size CI output or a local build size comparison.
@@ -199,6 +198,14 @@ COOKIE_NAME=grafana_session COOKIE_VALUE="$sess" COOKIE_DOMAIN=<host> \
 - **Pairs with:** [lane-assertions.md](lane-assertions.md) for the recipe form; D3 when the substituted artifact is a LavaMoat policy.
 
 ---
+
+## D7. Build & rebuild duration A/B *(paired; lead for toolchain-change claims)*
+- **Proves:** what a toolchain change costs or saves in the **dev loop** — a loader, transform, linter, or bundler swap. Distinct from `C5`, which times the shipped app at runtime; this times the build that produces it. The two move independently and in opposite directions often enough that measuring one and inferring the other is the failure this lane exists to prevent (`React Compiler` builds slower and runs faster; `thread-loader` builds faster and runs identically).
+- **Shape:** paired A/B, both arms built now, on one machine, alternating order. **Cold and warm are separate questions and get separate numbers** — never one figure labelled "build time".
+- **Capture:** N ≥ 5 per arm per mode, alternating. Cold: clear the cache explicitly between arms (`node_modules/.cache`, webpack `cache.cacheDirectory`) and state what was cleared. Warm: touch one source file, rebuild, discard the first result as pool warmup. Report median **and spread**; a median without spread hides a bimodal cache effect.
+- **Falsifiers — each returns a favourable number when uncontrolled:** warm cache leaking into the "cold" arm (the largest confound, and the easiest to introduce by running arms in sequence); worker-pool startup counted once and amortised across rebuilds; core count, since parallel loaders scale with the runner and a laptop result does not transfer; watch-rebuild numbers presented as cold-build numbers.
+- **Trust-gate:** state machine, core count, N, and cache handling per arm, or the number is unreproducible. A null result states the smallest effect the sample could have detected — "no difference" from N=3 is not a finding. Renders **no ship verdict**: a change that costs build time and buys runtime is a trade, and pricing it is not the same as taking it.
+- **Corroborate:** `G6` for the CI half (different machine, different confounds), `C5` for the runtime half. A toolchain claim is not closed by one surface.
 
 # E. Production telemetry
 
@@ -261,6 +268,7 @@ COOKIE_NAME=grafana_session COOKIE_VALUE="$sess" COOKIE_DOMAIN=<host> \
 - **G3. Automated-reviewer output** — independent bot (e.g. cursor[bot]) found nothing blocking. Complements, never replaces, behavior evidence.
 - **G4. Manual reproduction steps** — human-followable steps that reproduce the fixed behavior; populates the PR template's Manual testing steps.
 - **G5. CI-workflow change, run on a test fork** — a CI-YAML-only PR usually **cannot exercise the workflow it edits**: identical build output ⇒ builds reused from base ⇒ `needs-<X>=false` ⇒ the workflow is *skipped* (`get-requirements.yml:654`). Escape: push to a branch literally named **`main`** (or `stable`) on `consensys-test/metamask-extension-test-majorlift` — `IS_RUN_EVERYTHING_BRANCH` (line 48) disables `find-reusable-builds` (line 310), so the workflow runs; `IS_CROSS_REPO_PR` is false inside the fork. Requires the workflow's secrets on the fork (`INFURA_PROJECT_ID`, `TEST_SRP_*` for benchmarks; `vars.`-gated Sentry/AWS steps skip cleanly) and a fork sync first. **State fork-scope in the published evidence** — it proves the workflow logic, not a run on the canonical repo..
+- **G6. CI job-duration delta** — compare job wall-clock across arms in the Actions UI or `gh run view`. **Falsifier: build reuse.** `get-requirements.yml` skips jobs when build output matches base, so a measured "speedup" is often a skipped job — confirm each arm actually ran the work before comparing. Runner class and queue time vary independently of the change; report job time, not wall-clock from push. Pairs with `D7`, which measures the same change on a machine you control.
 
 ---
 
