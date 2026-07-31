@@ -6,7 +6,7 @@ maturity: experimental
 
 # grafana-tempo-queries
 
-Tempo holds **backend** spans. Client spans from the extension and mobile go to Sentry via the SDK's own transport and never appear here — so a Tempo trace normally starts at an inbound server span, and a missing root is expected rather than broken. To join the two halves, see `sentry-grafana-cross-ref`.
+Tempo holds **backend** spans. Client spans from the extension and mobile go to Sentry via the SDK's own transport and never appear here — so a Tempo trace normally starts at an inbound server span, and a missing root is expected rather than broken. To join the two halves, see `sentry-grafana-correlation`.
 
 ## Setup
 
@@ -122,4 +122,4 @@ Prefer an absolute `from`/`to` when the link needs to outlive the event; a relat
 | Tag-values returns 502 | High cardinality | Inspect traces directly |
 | Id from search not found elsewhere | Leading zeros stripped | Zero-pad to 32 chars |
 | Kind filter matches nothing | Comparing to a number | Compare to `SPAN_KIND_*` |
-| Trace has no root | Root is a client span | Expected; see `sentry-grafana-cross-ref` |
+| Trace has no root | Root is a client span | Expected; see `sentry-grafana-correlation` |

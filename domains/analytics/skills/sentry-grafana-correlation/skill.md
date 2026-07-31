@@ -1,10 +1,10 @@
 ---
-name: sentry-grafana-cross-ref
+name: sentry-grafana-correlation
 description: Join one trace across Sentry and Grafana Tempo by trace id to see the whole client-to-backend path, and diagnose why a half is missing. Covers the split-store model (client spans reach Sentry through the SDK and survive only head sampling; backend spans reach Tempo through tail sampling and Sentry through environment routing), the classification of both-halves / client-only / backend-only outcomes with the sampling and routing rule that causes each, and the id-padding, time-window, and query-syntax traps that make a present trace look absent. Use when a trace looks truncated, a backend span has no parent, per-hop latency needs attributing across the seam, or you need to know which store should hold a given span. Triggers on cross-stack trace, orphaned span, trace id lookup, client-backend correlation, split waterfall, or "where did the rest of the trace go".
 maturity: experimental
 ---
 
-# sentry-grafana-cross-ref
+# sentry-grafana-correlation
 
 One request produces spans in two stores, joined only by `trace_id`. Reading a trace end to end means querying both and knowing which absences are expected.
 
