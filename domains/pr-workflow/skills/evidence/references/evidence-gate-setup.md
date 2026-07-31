@@ -23,7 +23,7 @@ Add a `PreToolUse` hook with matcher `Bash` that runs the script with `python3`.
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /absolute/path/to/pr-validate/hooks/pr-evidence-gate.py"
+            "command": "python3 /absolute/path/to/evidence/hooks/pr-evidence-gate.py"
           }
         ]
       }
@@ -32,10 +32,10 @@ Add a `PreToolUse` hook with matcher `Bash` that runs the script with `python3`.
 }
 ```
 
-Resolve the path to wherever `pr-validate` lives on disk. Note that `tools/install` copies only the `references`/`scripts`/`assets`/`adapters` bundles into `~/.claude/skills/mms-pr-validate/` — the `hooks/` directory is **not** part of the installed bundle. Point the `command` at your checked-out skills repo instead:
+Resolve the path to wherever `evidence` lives on disk. Note that `tools/install` copies only the `references`/`scripts`/`assets`/`adapters` bundles into `~/.claude/skills/mms-evidence/` — the `hooks/` directory is **not** part of the installed bundle. Point the `command` at your checked-out skills repo instead:
 
 ```
-<skills-repo>/domains/pr-workflow/skills/pr-validate/hooks/pr-evidence-gate.py
+<skills-repo>/domains/pr-workflow/skills/evidence/hooks/pr-evidence-gate.py
 ```
 
 **When it blocks:** the hook exits `2` and prints the reason (which claim, what artifact/tracker it needs) to stderr. Claude Code surfaces that to the model, which self-corrects — attaches the missing artifact/tracker or downgrades the verdict — and re-posts. No manual intervention needed.
@@ -44,7 +44,7 @@ Resolve the path to wherever `pr-validate` lives on disk. Note that `tools/insta
 
 These are independent of the hook; the skill needs them whether or not you install the gate.
 
-1. **`gh pr comment` must be permitted — pick a grant model.** pr-validate posts its evidence bundle as a PR review comment (`gh pr edit` if publishing into your own PR body). Four options, in descending order of standing safety:
+1. **`gh pr comment` must be permitted — pick a grant model.** evidence posts its evidence bundle as a PR review comment (`gh pr edit` if publishing into your own PR body). Four options, in descending order of standing safety:
 
    | Model | How | Tradeoff |
    |---|---|---|

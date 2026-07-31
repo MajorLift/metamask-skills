@@ -1,6 +1,6 @@
 ---
 name: falsifying-test
-description: Produce the strongest single proof that a fix targets the reported bug — a test that fails on the base commit and passes on the branch, with both runs shown. The falsifier is a test that fails on base for the wrong reason (import error, missing fixture, unrelated breakage) rather than by asserting the bug; that failure looks identical in an exit code and proves nothing. Also covers the diagnostic case: if no test can be written that fails on base, the fix's connection to the reported bug is the thing in doubt. Triggers on /falsifying-test, or when asked to write a regression test for a fix, prove a bug fix works, show a test failing before and passing after, or check whether a PR's test actually covers its claim. Callable by pr-validate as the engine behind its falsifying regression test evidence category.
+description: Produce the strongest single proof that a fix targets the reported bug — a test that fails on the base commit and passes on the branch, with both runs shown. The falsifier is a test that fails on base for the wrong reason (import error, missing fixture, unrelated breakage) rather than by asserting the bug; that failure looks identical in an exit code and proves nothing. Also covers the diagnostic case: if no test can be written that fails on base, the fix's connection to the reported bug is the thing in doubt. Triggers on /falsifying-test, or when asked to write a regression test for a fix, prove a bug fix works, show a test failing before and passing after, or check whether a PR's test actually covers its claim. Callable by evidence as the engine behind its falsifying regression test evidence category.
 maturity: experimental
 ---
 
@@ -80,7 +80,7 @@ Falsifying test — <test name>  (Fixes #N)
 
 ## Related
 
-- `pr-validate` — packages this skill's output as its B3 evidence category; B7 (deterministic
+- `evidence` — packages this skill's output as its B3 evidence category; B7 (deterministic
   interleaving) is the sibling for concurrency and temporal-ordering bugs.
 - `react-render-proof` — the same before/after discipline applied to a measured quantity
   rather than a boolean.

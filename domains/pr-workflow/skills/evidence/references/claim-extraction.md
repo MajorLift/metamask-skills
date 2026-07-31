@@ -1,6 +1,6 @@
 # Claim extraction
 
-The linchpin of pr-validate: before choosing any lane, turn the PR into a **falsifiable, surface-specific claim**. Every lane is only as good as the claim it tests. A vague claim ("improves perf", "fixes the bug") can't be proven or refuted; a sharp claim names the precondition, action, observable outcome, and what would disprove it.
+The linchpin of evidence: before choosing any lane, turn the PR into a **falsifiable, surface-specific claim**. Every lane is only as good as the claim it tests. A vague claim ("improves perf", "fixes the bug") can't be proven or refuted; a sharp claim names the precondition, action, observable outcome, and what would disprove it.
 
 ## Read these, in order
 
