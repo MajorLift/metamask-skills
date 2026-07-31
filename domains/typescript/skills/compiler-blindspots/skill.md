@@ -1,5 +1,5 @@
 ---
-name: typescript-compiler-blindspots
+name: compiler-blindspots
 description: >-
   Find the type defects `tsc` is structurally unable to report — a green build is
   not evidence the types are correct. Covers the two classes: (1) hand-written
