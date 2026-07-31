@@ -117,7 +117,7 @@ Screenshots block (injected into `### After`, or appended under `### Screenshots
 ## Step 3 — Choose the surface by ownership, then publish
 
 **Publish surface depends on my relationship to the PR** (see exogram
-`pr-validate-publish-surface-by-ownership`). Determine it FIRST:
+`evidence-publish-surface-by-ownership`). Determine it FIRST:
 
 ```bash
 PR=<n>; REPO=MetaMask/metamask-extension
@@ -223,7 +223,7 @@ The platform can't collect video (artifact regex = png/jpg/log/txt). Capture out
 
 ## Re-validation runs: delta-first presentation, every verdict re-earned (2026-07-21)
 
-The common loop — a run refutes a claim, the author pushes a fix, `/pr-validate` re-runs at the new head — gets a **delta report**, not a second full bundle:
+The common loop — a run refutes a claim, the author pushes a fix, `/evidence` re-runs at the new head — gets a **delta report**, not a second full bundle:
 
 - **Presentation is delta-only.** Full exhibits only for lanes whose outcome changed (flipped verdict / new lane / new residual). Unchanged lanes collapse to a `Prior run | This run` ledger, each row with a fresh run-log link from the new head plus one link to the prior run's comment for the full exhibits — and say so ("unchanged rows re-run at `<head>`; full exhibits in the prior run").
 - **Evidence is never delta.** Evidence is head-pinned: re-run every automated lane at the new head and re-earn every verdict with a fresh artifact. "Unchanged" is a conclusion from the re-run, never a carried-over assumption (the stale-baseline trap at report level). Re-running is cheap — the falsifier harness already exists from the first run.
@@ -231,7 +231,7 @@ The common loop — a run refutes a claim, the author pushes a fix, `/pr-validat
 - New head → **new hosted artifact directory keyed to the fix commit** (`pr-<n>/fix-<sha>/`), commit-pinned raw URLs; never overwrite a prior run's published files.
 - Residuals the fix intentionally leaves get their own row/section — don't round a fixed-with-residual claim up to fully proven.
 
-Source of truth: `exogram-core/memory/pr-validate-revalidation-delta-reports.md`.
+Source of truth: `exogram-core/memory/evidence-revalidation-delta-reports.md`.
 
 ## Lead with a lane-status ledger (no silent absence)
 
@@ -293,11 +293,11 @@ contract. `hooks/pr-evidence-gate.py` enforces the canonical literal only on bod
 trip it, which is the tell that the two are different artifacts rather than one with a
 different skin.
 
-**Per-scenario presentation (2026-07-21):** the same applies one level down — when the evidence spans multiple test scenarios (flag-on vs flag-off, control vs treatment in an A/B falsifier, numbered manual-testing steps), give each scenario its **own sub-section**: a heading naming the scenario in observation terms, one line on what it tests plus its verdict, and that scenario's artifacts co-located under it. Never bunch all scenarios' artifacts into one large evidence dump — the reviewer verifies "under condition X, artifact shows Y" one condition at a time, and a merged block destroys that mapping even when every artifact is real. For long artifact sets use a `<details>` block *per scenario*, not a merge. (Preference: exogram-core `memory/pr-validate-present-scenarios-separately.md`; instance #44610.)
+**Per-scenario presentation (2026-07-21):** the same applies one level down — when the evidence spans multiple test scenarios (flag-on vs flag-off, control vs treatment in an A/B falsifier, numbered manual-testing steps), give each scenario its **own sub-section**: a heading naming the scenario in observation terms, one line on what it tests plus its verdict, and that scenario's artifacts co-located under it. Never bunch all scenarios' artifacts into one large evidence dump — the reviewer verifies "under condition X, artifact shows Y" one condition at a time, and a merged block destroys that mapping even when every artifact is real. For long artifact sets use a `<details>` block *per scenario*, not a merge. (Preference: exogram-core `memory/evidence-present-scenarios-separately.md`; instance #44610.)
 
 ## Artifact contract (ADR-0058 alignment)
 
-To stay interoperable with the recipe-based verification system (MetaMask/decisions#173), shape the bundle like its reviewer-visible contract where practical: a `summary.json` (claim → verdict → evidence refs), a `trace.json` (the run/assertion log), and an artifact manifest (names + media types), with screenshots/video as the confidence layer. Publishing then becomes "render `summary.json` into the PR section." This keeps pr-validate's output and a recipe's output the same shape — see [lane-assertions.md](lane-assertions.md). Don't hand-roll a divergent format.
+To stay interoperable with the recipe-based verification system (MetaMask/decisions#173), shape the bundle like its reviewer-visible contract where practical: a `summary.json` (claim → verdict → evidence refs), a `trace.json` (the run/assertion log), and an artifact manifest (names + media types), with screenshots/video as the confidence layer. Publishing then becomes "render `summary.json` into the PR section." This keeps evidence's output and a recipe's output the same shape — see [lane-assertions.md](lane-assertions.md). Don't hand-roll a divergent format.
 
 ## Checklist before you publish
 

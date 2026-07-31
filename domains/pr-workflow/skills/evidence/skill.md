@@ -1,9 +1,9 @@
 ---
-name: pr-validate
-description: Validate a MetaMask PR with objective evidence — primarily the Autonomous Engineering Platform (AEP) harness (visual_validation for visible UI behavior, perf_validation for non-visible perf behavior), backed by complementary evidence (Sentry query links, screenshots, screen recordings→GIF, DevTools/CDP output, bundle-size, web-vitals, test/CI results). Drives the AEP local stack end to end: preflight (postgres + temporal + worker + control-plane) → submit POST /v1/tasks → poll GET /v1/runs/:id → fetch artifacts → assemble an evidence bundle → publish to the PR body (re-hosting images to a public repo, scrubbing local paths). Match evidence to the PR's specific falsifiable claim, not a fixed checklist. Triggers on /pr-validate, /pr-validate visual, /pr-validate perf, /pr-validate preflight, /pr-validate status, /pr-validate evidence, /pr-validate plan, or when the user mentions validating/proving a PR, AEP / visual validation / perf validation, capturing evidence for a PR, before/after screenshots, a screen recording or GIF for a PR, attaching Sentry links or DevTools output as proof, or publishing an evidence bundle to a PR body.
+name: evidence
+description: Produce reviewer-grade evidence that a claim is true — or that it is not. Matches the evidence to the specific falsifiable claim rather than running a fixed checklist, across a catalog of 41 lanes: before/after screenshots, falsifying regression tests, render and selector proofs, bundle and LavaMoat diffs, Sentry and Tempo links, state-migration and vault checks, plus the Autonomous Engineering Platform (AEP) harness for autonomous visual and perf capture. Assembles an evidence bundle and publishes it, images re-hosted and local paths scrubbed. Runs three ways: on a PR whose claim someone else made, in the inner loop against uncommitted changes before a reviewer sees them, and on a symptom with no claim yet, where the hypothesis to kill is your own. Triggers on the evidence command and its subcommands (visual, perf, preflight, status, plan, lane, compare) — installed as mms-evidence — or when the user mentions validating or proving a PR, capturing evidence, before/after screenshots, a screen recording for a PR, attaching Sentry or DevTools output as proof, AEP or visual/perf validation, or publishing an evidence bundle.
 ---
 
-# /pr-validate
+# /evidence
 
 Prove a PR does what it claims with **objective, reviewer-grade evidence**. The primary engine is the **Autonomous Engineering Platform (AEP)** harness run locally — `visual_validation` for visible UI behavior, `perf_validation` for non-visible perf behavior — augmented by whatever complementary evidence the claim demands (Sentry query links, screenshots, screen recordings, DevTools/CDP output, bundle/web-vitals/test results).
 
@@ -93,15 +93,15 @@ Not for code-correctness review (use `/review`, `/code-review`) or span-quota re
 
 | Invocation | Behavior |
 |---|---|
-| `/pr-validate <pr>` | **Flagship.** Read the PR → state the claim → pick lanes → [preflight](references/aep-local-run.md) → run AEP lane(s) + gather complementary evidence → assemble bundle → **propose** the PR-body section and confirm before publishing. |
-| `/pr-validate plan <pr>` | Dry run: read the PR, state the claim, recommend lanes + targeting hints. No stack, no run. Cheap first step when unsure. |
-| `/pr-validate visual <pr>` | AEP `visual_validation` only. |
-| `/pr-validate perf <pr>` | AEP `perf_validation` only (local/uncommitted graph — see [caveat](#perf_validation-caveat)). |
-| `/pr-validate preflight` | Health-check the local stack; bring up what's down. No run. |
-| `/pr-validate status <run-id>` | Poll `GET /v1/runs/:id`; print stage timeline + `evidenceBundle.artifactRefs`. |
-| `/pr-validate evidence <pr> [--run <id>]` | Assemble + publish a bundle from an existing run and/or complementary sources (Sentry/screens/devtools). No new AEP run. |
-| `/pr-validate lane <id> <pr>` | Run a single [catalog](references/evidence-catalog.md) lane by id (e.g. `lane F1`, `lane C3`, `lane D3`) — for the non-AEP lanes where you know the claim type. |
-| `/pr-validate compare <pr>` | Paired A/B for a perf or refactor claim. Two arm kinds — pick by what the claim varies: **`ref`** (default) builds base + head, captures the lane on both, diffs; avoids the stale-baseline trap (catalog C5). **`substitution`** holds a **fixed head** and varies one *artifact* instead of the ref — replace the PR's hand-written type/schema/constant/policy with the authoritative equivalent and diff a checker's output (catalog D6); no build, no rebase, no merge boundary. **Per-arm checks first, one per kind:** for `ref`, verify the mechanism under test is actually active in each arm (chunk split present, span emitted, flag evaluated) — a null arm without delivered treatment is a no-op, not a control (2026-07-22, #42795 bisect lesson). For `substitution`, verify the unmodified arm is **silent** and that each diagnostic fires for the reason claimed — a noisy Arm A destroys attribution, and a diagnostic tripping one property early scores as a confirmation it isn't (trustworthiness gate item 19; 2026-07-30, #44397). |
+| `/evidence <pr>` | **Flagship.** Read the PR → state the claim → pick lanes → [preflight](references/aep-local-run.md) → run AEP lane(s) + gather complementary evidence → assemble bundle → **propose** the PR-body section and confirm before publishing. |
+| `/evidence plan <pr>` | Dry run: read the PR, state the claim, recommend lanes + targeting hints. No stack, no run. Cheap first step when unsure. |
+| `/evidence visual <pr>` | AEP `visual_validation` only. |
+| `/evidence perf <pr>` | AEP `perf_validation` only (local/uncommitted graph — see [caveat](#perf_validation-caveat)). |
+| `/evidence preflight` | Health-check the local stack; bring up what's down. No run. |
+| `/evidence status <run-id>` | Poll `GET /v1/runs/:id`; print stage timeline + `evidenceBundle.artifactRefs`. |
+| `/evidence evidence <pr> [--run <id>]` | Assemble + publish a bundle from an existing run and/or complementary sources (Sentry/screens/devtools). No new AEP run. |
+| `/evidence lane <id> <pr>` | Run a single [catalog](references/evidence-catalog.md) lane by id (e.g. `lane F1`, `lane C3`, `lane D3`) — for the non-AEP lanes where you know the claim type. |
+| `/evidence compare <pr>` | Paired A/B for a perf or refactor claim. Two arm kinds — pick by what the claim varies: **`ref`** (default) builds base + head, captures the lane on both, diffs; avoids the stale-baseline trap (catalog C5). **`substitution`** holds a **fixed head** and varies one *artifact* instead of the ref — replace the PR's hand-written type/schema/constant/policy with the authoritative equivalent and diff a checker's output (catalog D6); no build, no rebase, no merge boundary. **Per-arm checks first, one per kind:** for `ref`, verify the mechanism under test is actually active in each arm (chunk split present, span emitted, flag evaluated) — a null arm without delivered treatment is a no-op, not a control (2026-07-22, #42795 bisect lesson). For `substitution`, verify the unmodified arm is **silent** and that each diagnostic fires for the reason claimed — a noisy Arm A destroys attribution, and a diagnostic tripping one property early scores as a confirmation it isn't (trustworthiness gate item 19; 2026-07-30, #44397). |
 
 `<pr>` is a number or URL on `MetaMask/metamask-extension` unless another repo is given. Every variant runs Step 1 (extract the Claim Card) first — the claim decides the lane, even when you named one.
 
@@ -210,23 +210,23 @@ PR claims privacy mode now hides the Perps balance (the demo bug #42683):
 
 End-to-end examples for **non-visual** claims (perf, migration, flag-gated, refactor/no-op): **[references/worked-examples.md](references/worked-examples.md).**
 
-## Positioning: AEP vs recipes vs pr-validate
+## Positioning: AEP vs recipes vs evidence
 
 Three adjacent things; keep the boundary clear so they compose instead of collide:
 
 - **AEP** — governed *fleet orchestration*: sandboxes, Temporal, autonomous runs at scale. The heavy engine.
 - **ADR-0058 recipes** ([decisions#173](https://github.com/MetaMask/decisions/pull/173)) — a *dev-machine inner-loop* proof artifact: a declarative per-PR recipe run against the live app over CDP, emitting `summary.json`/`trace.json`/manifest.
-- **pr-validate** (this skill) — the *claim→evidence methodology + taxonomy* both draw on. The Claim Card is the bridge from a PR's claim to the right proof target; the [evidence catalog](references/evidence-catalog.md) is the lane vocabulary; [lane-assertions.md](references/lane-assertions.md) maps each lane to a recipe assertion (and flags the out-of-band, non-UI lanes — the gap MajorLift's #173 review raised).
+- **evidence** (this skill) — the *claim→evidence methodology + taxonomy* both draw on. The Claim Card is the bridge from a PR's claim to the right proof target; the [evidence catalog](references/evidence-catalog.md) is the lane vocabulary; [lane-assertions.md](references/lane-assertions.md) maps each lane to a recipe assertion (and flags the out-of-band, non-UI lanes — the gap MajorLift's #173 review raised).
 
-pr-validate is the one a human drives; it can dispatch an AEP run or author a recipe as its capture step.
+evidence is the one a human drives; it can dispatch an AEP run or author a recipe as its capture step.
 
 ## Workflow integration
 
-Where pr-validate sits in the PR lifecycle (see the public `pr-workflow` siblings):
+Where evidence sits in the PR lifecycle (see the public `pr-workflow` siblings):
 
 - **After `create-pr`, before `pr-review-queue`:** validate the claim, attach the bundle, *then* request review — reviewers get the before/after up front.
 - **On force-push / requested-change:** re-run the affected lane(s); re-validation keeps a stale evidence section honest.
-- **`/triage` push items:** a `push`-state PR isn't done until its claim is proven; pr-validate produces the evidence that lets it move.
+- **`/triage` push items:** a `push`-state PR isn't done until its claim is proven; evidence produces the evidence that lets it move.
 - **Not a CI gate** (same scope line as ADR-0058) — it's the author's inner loop, complementing unit/e2e, not replacing them.
 
 ## Boundaries
