@@ -392,6 +392,26 @@ head `<sha>` · <YYYY-MM-DD> · lanes: <lane ids>
 captured blocks go in the body, not behind a `<details>`, and they should outweigh your
 prose — 70% exhibit is a reasonable floor. Everything you write around them is a caption.
 
+**A fenced block is not the evidence.** Nothing in it distinguishes real stdout from invented
+stdout, or from real stdout that has since drifted from its source — and whatever would
+fabricate it is what formats it. Where fabrication, hallucination, or drift is a concern at
+all, and that is nearly all plaintext, the medium is wrong.
+
+The qualifying media are the ones where verification does not route through you:
+
+- an **image of the tool's own surface** — the run page, the Discover view, the waterfall;
+- a **link that re-executes or re-renders** — a CI run, a query permalink, a dashboard;
+- a **hosted artifact the reader fetches** — the log at a URL, not a quotation of it.
+
+Paste the fenced block *beside* one of those, never instead of one. This is also why a
+plaintext check can never close the gap: every property of text is forgeable by whatever emits
+the text, so the gate asks for a different medium rather than for better text.
+
+**If the artifact is small, nothing was attached.** The reference showcase runs to 2 MB because
+it carries 31 embedded captures. Uploading costs a step and a decision about what may be
+published; that cost is the price of the reader not having to trust you, and a pipeline with no
+upload step has no evidence step.
+
 **Never restate an artifact's number in your own prose.** A figure that appears only in a
 sentence you typed is a figure on your word, which is the one thing this whole skill exists
 to avoid. Cite by pointing at the block; a summary table above the exhibits duplicates the

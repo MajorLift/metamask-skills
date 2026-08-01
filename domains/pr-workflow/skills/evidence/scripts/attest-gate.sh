@@ -49,17 +49,43 @@ hasre 'head `[0-9a-f]{7,}|sha256|node `v|yarn\.lock `|[Ff]irefox [0-9]+\.[0-9]|[
   && pass "4 environment pinned" \
   || fail "4 environment pinned" "no head SHA, lockfile hash, or pinned toolchain/browser version"
 
-# 5 — the one that matters. A tool-written log, a run link, or an image; not typed prose.
+# 5 — the one that matters, and it asks for a MEDIUM, not for better text.
+#
+# Every earlier version of this check tested a property of the plaintext: does it carry a
+# provenance marker, does the command contain a placeholder, is the path local. Each caught
+# one defect and missed the next, because every property of plaintext is forgeable by
+# whatever emits the plaintext. Four runs shipped that way.
+#
+# So the block below is necessary but is no longer the evidence. The evidence is an image
+# of the tool's own surface, a link that re-executes, or a hosted artifact the reader
+# fetches without going through the author. If the artifact is small, nothing was attached.
 #
 # `Produced by` attests who WROTE the block, not that the block is the tool's own output.
 # A script that composes a summary table and stamps itself passes on the marker alone —
 # which is how a run shipped with a table the script had written, one grepped line, and a
 # command reading `yarn jest <generated probe>`. A `$` line carrying a placeholder is the
 # tell: it looks reproducible and cannot be run.
-if ! hasre '!\[|<img|data:image|actions/runs|/gist\.|evidence-artifacts/|Produced by '; then
-  fail "5 captured artifact" "every block appears operator-typed; no tool-written log, run link, or image referenced"
+# An image, a re-executing link, or a hosted artifact — verification that does not route
+# through the author. `Produced by` and `evidence-artifacts/` are provenance, not this.
+if ! hasre '!\[[^]]*\]\(https?://|<img [^>]*src="https?://|actions/runs/[0-9]|/gist\.|https?://[^ )]+\.(png|jpg|jpeg|gif|svg|txt|log|json)\b'; then
+  fail "5 captured artifact" "no reader-verifiable capture — an image of the tool surface, a run link, or a hosted artifact. A fenced block is the author\'s transcription, whatever produced it"
+  # No separate attribution test: a hosted artifact the reader fetches is its own
+  # attribution, and requiring `Produced by` on top of it only fails runs whose
+  # evidence is stronger than a stamped fenced block.
 elif grep -qE '^\$ .*<[a-z][a-z ._-]*>' "$FILE"; then
   fail "5 captured artifact" "a console command contains a placeholder — $(grep -m1 -oE '^\$ .*' "$FILE") is not a command a reader can run"
+elif grep -qE '^\$ .*(/tmp/|/home/|/Users/)' "$FILE"; then
+  # A helper script in /tmp, or any absolute local path, is unreproducible by
+  # construction. `capture.sh` records the command honestly — but honestly
+  # recording `bash /tmp/dup.sh` still publishes a recipe nobody else can follow.
+  # Inline the commands, or ship the helper where the reader can reach it.
+  fail "5 captured artifact" "a console command references a local-only path — $(grep -m1 -oE '^\$ .*(/tmp/|/home/|/Users/)[^ ]*' "$FILE") cannot be run by a reader"
+elif [ "$(grep -cE '^\$ ' "$FILE")" -gt 1 ] && \
+     [ "$(grep -E '^\$ ' "$FILE" | sed 's/ *#.*$//' | sort -u | wc -l)" -lt "$(grep -cE '^\$ ' "$FILE")" ]; then
+  # Two identical commands shown as producing different outputs. The difference
+  # came from an edit made between runs, so the block misstates its own cause:
+  # running it twice reproduces the first number twice.
+  fail "5 captured artifact" "two console commands are identical but shown with different output — the block does not say what actually differed between them"
 else
   pass "5 captured artifact"
 fi
