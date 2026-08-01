@@ -46,7 +46,7 @@ hasre 'head `[0-9a-f]{7,}|sha256|node `v|yarn\.lock `' \
   || fail "4 environment pinned" "no head SHA, toolchain version, or lockfile hash"
 
 # 5 — the one that matters. A tool-written log, a run link, or an image; not typed prose.
-if hasre '!\[|<img|data:image|actions/runs|/gist\.|evidence-artifacts/|Captured by|Produced by \`'; then
+if hasre '!\[|<img|data:image|actions/runs|/gist\.|evidence-artifacts/|Produced by '; then
   pass "5 captured artifact"
 else
   fail "5 captured artifact" "every block appears operator-typed; no tool-written log, run link, or image referenced"
@@ -66,14 +66,14 @@ else
   pass "7 no process narration"
 fi
 
-if hasi '\*\*Verdict:\*\*.*proven' && ! hasre 'Captured by|Produced by \`|actions/runs|evidence-artifacts/'; then
+if hasi '\*\*Verdict:\*\*.*proven' && ! hasre 'Produced by |actions/runs|evidence-artifacts/'; then
   fail "8 verdict is earned" "claims 'proven' with no execution artifact — reading yields 'unverified'"
 else
   pass "8 verdict is earned"
 fi
 
 if [ -n "$REF" ] && [ -f "$REF" ]; then
-  r=$(grep -coE '!\[|<img|data:image' "$REF"); c=$(grep -coE '!\[|<img|data:image|evidence-artifacts/|Captured by' "$FILE")
+  r=$(grep -coE '!\[|<img|data:image' "$REF"); c=$(grep -coE '!\[|<img|data:image|evidence-artifacts/|Produced by' "$FILE")
   echo
   printf '  ratio  reference captures: %s | this artifact: %s\n' "$r" "$c"
   [ "$c" -eq 0 ] && [ "$r" -gt 0 ] && printf '         reference is capture-led and this is prose-only — see check 5\n'

@@ -128,6 +128,8 @@ JSON
     echo "subtracted, not disqualifying — only errors new under substitution are the finding.</sub>"
   fi
   echo
+  echo "<sub>Produced by \`tsc-substitution.sh\`; source restored after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · $TS_V. Logs: \`$STAMP-armA.log\`, \`$STAMP-armB.log\`.</sub>"
+  echo
 } > "$STAMP.md"
 
 printf 'tsc-substitution: %s (exit %s)\n  %s\n  %s\n' "$VERDICT" "$CODE" "$STAMP.json" "$STAMP.md" >&2
