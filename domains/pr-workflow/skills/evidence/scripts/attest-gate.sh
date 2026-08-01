@@ -50,10 +50,18 @@ hasre 'head `[0-9a-f]{7,}|sha256|node `v|yarn\.lock `|[Ff]irefox [0-9]+\.[0-9]|[
   || fail "4 environment pinned" "no head SHA, lockfile hash, or pinned toolchain/browser version"
 
 # 5 — the one that matters. A tool-written log, a run link, or an image; not typed prose.
-if hasre '!\[|<img|data:image|actions/runs|/gist\.|evidence-artifacts/|Produced by '; then
-  pass "5 captured artifact"
-else
+#
+# `Produced by` attests who WROTE the block, not that the block is the tool's own output.
+# A script that composes a summary table and stamps itself passes on the marker alone —
+# which is how a run shipped with a table the script had written, one grepped line, and a
+# command reading `yarn jest <generated probe>`. A `$` line carrying a placeholder is the
+# tell: it looks reproducible and cannot be run.
+if ! hasre '!\[|<img|data:image|actions/runs|/gist\.|evidence-artifacts/|Produced by '; then
   fail "5 captured artifact" "every block appears operator-typed; no tool-written log, run link, or image referenced"
+elif grep -qE '^\$ .*<[a-z][a-z ._-]*>' "$FILE"; then
+  fail "5 captured artifact" "a console command contains a placeholder — $(grep -m1 -oE '^\$ .*' "$FILE") is not a command a reader can run"
+else
+  pass "5 captured artifact"
 fi
 
 if hasi 'what would close it|what would prove it|closing it requires'; then
