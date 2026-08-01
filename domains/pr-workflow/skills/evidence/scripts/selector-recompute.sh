@@ -143,7 +143,7 @@ JSON
   echo "$LINE"
   echo '```'
   echo
-  echo "<sub>Measured by \`selector-recompute.sh\` via reselect's own counter; the probe is generated, run, and deleted. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`. Log: \`$STAMP.log\`.</sub>"
+  echo "<sub>Produced by \`selector-recompute.sh\` via reselect's own counter; the probe is generated, run, and deleted. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`. Log: \`$STAMP.log\`.</sub>"
 } > "$STAMP.md"
 
 printf 'selector-recompute: %s\n  %s\n  %s\n' "$VERDICT" "$STAMP.json" "$STAMP.md" >&2
