@@ -78,13 +78,21 @@ describe('$EXPORT recomputation probe', () => {
     ($EXPORT as unknown as { resetRecomputations: () => void }).resetRecomputations();
     const count = () => ($EXPORT as unknown as { recomputations: () => number }).recomputations();
 
-    for (let i = 0; i < $N; i++) call(base);
-    const a = count();
+    const seen: string[] = [];
+    const snap = (v: unknown) => { try { return JSON.stringify(v); } catch { return '<unserialisable>'; } };
 
+    for (let i = 0; i < $N; i++) seen.push(snap(call(base)));
+    const a = count();
+    const stableIdentical = new Set(seen).size === 1;
+
+    const unrelatedSeen: string[] = [];
     for (let i = 0; i < $N; i++) {
-      call({ ...base, $SLICE: { ...base.$SLICE, __unrelated__: i } });
+      unrelatedSeen.push(snap(call({ ...base, $SLICE: { ...base.$SLICE, __unrelated__: i } })));
     }
     const b = count();
+    // A write the selector does not read must not change what it returns. If it does,
+    // the memoisation is not the story — the selector has an input it does not declare.
+    const stableUnrelated = new Set(unrelatedSeen).size === 1 && unrelatedSeen[0] === seen[0];
 
     for (let i = 0; i < $N; i++) {
       call({ ...base, $SLICE: { ...base.$SLICE, $PERTURB: [\`0x\${i}\`] } });
@@ -92,8 +100,14 @@ describe('$EXPORT recomputation probe', () => {
     const c = count();
 
     // eslint-disable-next-line no-console
-    console.log(\`RECOMPUTE_PROBE identical=\${a} unrelated=\${b} inputChanged=\${c} n=$N\`);
+    console.log(
+      \`RECOMPUTE_PROBE identical=\${a} unrelated=\${b} inputChanged=\${c} n=$N\` +
+      \` valueStable=\${stableIdentical && stableUnrelated}\`,
+    );
     expect(c).toBeGreaterThanOrEqual(b);
+    // Correctness gates the measurement: an unstable value makes the count meaningless.
+    expect(stableIdentical).toBe(true);
+    expect(stableUnrelated).toBe(true);
   });
 });
 PROBEEOF
@@ -103,12 +117,17 @@ CODE=$?
 cleanup; trap - EXIT INT TERM
 
 LINE="$(grep -o 'RECOMPUTE_PROBE .*' "$STAMP.log" | head -1)"
+STABLE="$(printf '%s' "$LINE" | sed -n 's/.*valueStable=\([a-z]*\).*/\1/p')"
 A="$(printf '%s' "$LINE" | sed -n 's/.*identical=\([0-9]*\).*/\1/p')"
 B="$(printf '%s' "$LINE" | sed -n 's/.*unrelated=\([0-9]*\).*/\1/p')"
 C="$(printf '%s' "$LINE" | sed -n 's/.*inputChanged=\([0-9]*\).*/\1/p')"
 
 if [ -z "$A" ]; then
   VERDICT="probe-failed"
+elif [ "$STABLE" = "false" ]; then
+  # Correctness first. A selector whose value moves under a write it does not read has an
+  # undeclared input, and no recomputation count means anything until that is resolved.
+  VERDICT="VALUE UNSTABLE — breaking behaviour, count not meaningful"
 elif [ "$B" -gt "$A" ]; then
   VERDICT="recomputes on unrelated writes"
 else
@@ -137,6 +156,15 @@ JSON
   echo "| Identical state reference | $N | ${A:-?} |"
   echo "| Fresh \`$SLICE\` slice, unrelated field | $N | ${B:-?} |"
   echo "| \`$PERTURB\` changed (a real input) | $N | ${C:-?} |"
+  echo
+  if [ "$STABLE" = "true" ]; then
+    echo "**Correctness:** the returned value is identical across all calls above, so the count"
+    echo "measures memoisation rather than a change in behaviour."
+  else
+    echo "**Correctness: FAILED.** The returned value changed under a write the selector does not"
+    echo "declare as an input. That is a behavioural difference, not a performance one, and it"
+    echo "makes the recomputation count meaningless — resolve it before reading the numbers."
+  fi
   echo
   echo '```console'
   echo "\$ yarn jest <generated probe>"

@@ -72,6 +72,17 @@ else
   pass "8 verdict is earned"
 fi
 
+# 9 — the wrapper's verdict must not contradict the artifact it embeds. A comment is
+# assembled by hand around machine output, and the hand-written header is exactly where
+# a "vacuous" result acquires a "proven" label.
+HDR="$(grep -m1 '^\*\*Verdict:\*\*' "$FILE" | tr 'A-Z' 'a-z')"
+BODY="$(grep -ioE 'vacuous|value unstable|no delta|nothing falsified|broke the module|substitution silent|probe-failed' "$FILE" | head -1 | tr 'A-Z' 'a-z')"
+if printf '%s' "$HDR" | grep -q 'proven' && [ -n "$BODY" ]; then
+  fail "9 verdict matches artifact" "header claims 'proven' while the embedded artifact reports '$BODY'"
+else
+  pass "9 verdict matches artifact"
+fi
+
 if [ -n "$REF" ] && [ -f "$REF" ]; then
   r=$(grep -coE '!\[|<img|data:image' "$REF"); c=$(grep -coE '!\[|<img|data:image|evidence-artifacts/|Produced by' "$FILE")
   echo
