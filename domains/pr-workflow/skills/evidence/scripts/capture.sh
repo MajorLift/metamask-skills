@@ -102,9 +102,9 @@ JSON
 
 {
   if [ "$VERDICT" = "completed" ]; then
-    echo "### ${LANE:+$LANE — }ran to completion (exit $CODE) — read the output, no verdict asserted"
+    echo "### Ran to completion (exit $CODE) — read the output, no verdict asserted"
   else
-    echo "### ${LANE:+$LANE — }\`$VERDICT\` (exit $CODE)"
+    echo "### \`$VERDICT\` (exit $CODE)"
   fi
   echo
   echo "**Claim under test:** $CLAIM"
@@ -127,15 +127,16 @@ JSON
   fi
   echo '```'
   echo
-  if [ -n "$OPEN" ]; then
-    echo "**Open for review** — $OPEN"
-  else
-    echo "**Open for review** — none stated. This tool answered one question; what it does"
-    echo "not cover was not recorded, which is not the same as it covering everything."
-  fi
-  echo
-  echo "<sub>Produced by \`capture.sh\`, not transcribed. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\` · \`$PY_V\` · yarn.lock \`$LOCK_SHA\`. Raw log: \`${STAMP##*/}.log\`.</sub>"
+  echo "<sub>Produced by \`capture.sh\`, not transcribed. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\` · \`$PY_V\` · yarn.lock \`$LOCK_SHA\`.</sub>"
 } > "$STAMP.md"
 
 printf 'capture: %s (exit %s)\n  %s\n  %s\n  %s\n' "$VERDICT" "$CODE" "$STAMP.log" "$STAMP.json" "$STAMP.md" >&2
+# Stated limits reach the orchestrator, not the pasted exhibit: one open question per
+# comment, about this diff, beats the same sentence repeated under every block.
+if [ -n "$OPEN" ]; then
+  printf 'limits: %s\n' "$OPEN" >&2
+else
+  printf 'limits: none stated. This tool answered one question; what it does not cover was
+not recorded, which is not the same as it covering everything.\n' >&2
+fi
 exit "$CODE"
