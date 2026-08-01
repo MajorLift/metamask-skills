@@ -223,6 +223,30 @@ default.
 
 A crashing command produces an artifact containing the traceback, not a fabricated result.
 
+### `selector-recompute.sh` — lane C4
+
+A memoization claim is a claim about a count, and `reselect` publishes the count. Generates a
+probe, runs it, deletes it, writes the artifact:
+
+```bash
+scripts/selector-recompute.sh --module ui/selectors/multichain-accounts/account-tree \
+  --export getWalletsWithAccounts --fixture test/data/mock-state.json \
+  --slice metamask --perturb pinnedAccountList
+```
+
+Three conditions, of which the middle one discriminates:
+
+| Condition | narrowed inputs | whole-slice input |
+|---|---|---|
+| identical state reference | 1 | 1 |
+| fresh slice, **unrelated** field | **1** | **6** |
+| a real input changed | 6 | 11 |
+
+A selector taking narrowed input selectors is unmoved by an unrelated write; one reading
+`state.metamask` wholesale recomputes on every unrelated write in the app. Both rows above are
+measured, not illustrative — `getWalletsWithAccounts` and `selectRampsControllerState` on
+`main`.
+
 ### Canonical output shape
 
 Every validation-run output — PR comment *or* PR-body section — uses exactly this, so re-runs
