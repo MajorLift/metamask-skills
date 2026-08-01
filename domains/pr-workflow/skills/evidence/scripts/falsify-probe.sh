@@ -12,10 +12,15 @@
 # Emits a captured artifact (JSON + markdown) written by this script, not
 # transcribed by an operator. Exit code IS the verdict, so CI can gate on it.
 #
-#   0  falsifying   arm A passed, arm B failed        → the test has power
-#   1  vacuous      arm A passed, arm B ALSO passed   → the test proves nothing
-#   2  broken       arm A failed                      → nothing to conclude
+#   0  falsifying   arm A passed, arm B failed ON ASSERTIONS → the test has power
+#   1  vacuous      arm A passed, arm B ALSO passed          → the test proves nothing
+#   2  broken       arm A failed, or arm B did not run       → nothing to conclude
 #   3  usage/env error
+#
+# Arm B failing is NOT sufficient. A mutation that breaks syntax fails every test in
+# the file, which looks identical to a falsification and is worth nothing: the suite
+# never executed. So arm B must run the SAME number of tests as arm A and fail some of
+# them. A dropped test count means the mutation broke the module, not the mechanism.
 #
 # Usage:
 #   falsify-probe.sh --test <path> --source <path> --line <n> --replace <text>
@@ -79,10 +84,13 @@ run_arm() { # $1=logfile ; prints "passed|failed"
   if $RUNNER "$TEST" > "$1" 2>&1; then echo passed; else echo failed; fi
 }
 
+total_tests() { sed -n 's/.*Tests:.*[^0-9]\([0-9][0-9]*\) total.*/\1/p' "$1" | head -1; }
+load_failed() { grep -qiE "SyntaxError|Cannot find module|Unexpected token|Transform failed" "$1"; }
+
 ARM_A="$(run_arm "$STAMP-armA.log")"
 
 if [ "$ARM_A" != "passed" ]; then
-  VERDICT="broken"; CODE=2; ARM_B="not-run"
+  VERDICT="baseline-already-failing"; CODE=2; ARM_B="not-run"
   : > "$STAMP-armB.log"
 else
   # Mutate exactly one line. `.bak` form keeps this portable across GNU/BSD sed.
@@ -90,7 +98,19 @@ else
     && mv "$SOURCE.tmp" "$SOURCE" || die "mutation failed"
   ARM_B="$(run_arm "$STAMP-armB.log")"
   restore; trap - EXIT INT TERM
-  if [ "$ARM_B" = "failed" ]; then VERDICT="falsifying"; CODE=0; else VERDICT="vacuous"; CODE=1; fi
+  A_TOTAL="$(total_tests "$STAMP-armA.log")"; A_TOTAL="${A_TOTAL:-0}"
+  B_TOTAL="$(total_tests "$STAMP-armB.log")"; B_TOTAL="${B_TOTAL:-0}"
+  if [ "$ARM_B" != "failed" ]; then
+    VERDICT="vacuous"; CODE=1
+  elif load_failed "$STAMP-armB.log" || [ "$B_TOTAL" -lt "$A_TOTAL" ]; then
+    # The suite did not execute under mutation, so nothing was falsified. Reported as
+    # broken rather than falsifying: a module that will not load fails every test, which
+    # is indistinguishable from a real failure by exit code alone.
+    VERDICT="mutation broke the module — suite ran $B_TOTAL of $A_TOTAL tests, nothing falsified"
+    CODE=2
+  else
+    VERDICT="falsifying"; CODE=0
+  fi
 fi
 
 summarise() { grep -E '^(Tests|Test Suites):' "$1" 2>/dev/null | tr '\n' ' ' | sed 's/  */ /g'; }
@@ -121,9 +141,10 @@ JSON
   echo "| B — mutant | \`$SOURCE:$LINE\` replaced | \`$B_SUM\` |"
   echo
   case "$VERDICT" in
-    falsifying) echo "The suite **fails when the mechanism is removed** and passes when restored. The test has power." ;;
+    falsifying) echo "The suite **fails when the mechanism is removed** and passes when restored, running the same $A_TOTAL tests in both arms. The test has power." ;;
     vacuous)    echo "The suite **passes with the mechanism removed**. It does not test what it appears to test." ;;
-    broken)     echo "Arm A did not pass, so arm B was not run. No conclusion." ;;
+    baseline-already-failing) echo "Arm A did not pass, so arm B was not run. No conclusion." ;;
+    *)          echo "**No conclusion.** $VERDICT — a module that will not load fails every test, which an exit code cannot tell apart from a real falsification." ;;
   esac
   [ -n "$FAILED_NAMES" ] && { echo; echo "Failing under mutation:"; echo; printf '%s\n' "$FAILED_NAMES" | sed 's/^/- /'; }
   echo
