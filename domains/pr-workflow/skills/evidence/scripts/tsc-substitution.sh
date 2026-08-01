@@ -16,7 +16,7 @@
 #
 #   0  divergence surfaced   new errors in arm B    → the local type disagrees
 #   1  no divergence         identical error sets   → substitution is silent
-#   2  arm A already failing → nothing to conclude
+#   2  usage/env error (baseline errors are subtracted, not disqualifying)
 #   3  usage/env error
 #
 # A silent result is NOT proof of agreement. Existing call sites may type-check
@@ -64,39 +64,34 @@ trap restore EXIT INT TERM
 errors_of() { grep -oE "error TS[0-9]+" "$1" 2>/dev/null | sort | uniq -c | sed 's/^ *//'; }
 
 $TSC > "$STAMP-armA.log" 2>&1
-A_ERRS="$(errors_of "$STAMP-armA.log")"
-A_COUNT="$(grep -c "error TS" "$STAMP-armA.log" 2>/dev/null || echo 0)"
+# Baseline errors are subtracted, not disqualifying. A local WIP file or an
+# unrelated pre-existing error must not veto the lane — the finding was always the
+# DIFF, so compare error SETS and let anything already present fall out.
+grep -oE "^[^ ]+\([0-9]+,[0-9]+\): error TS[0-9]+" "$STAMP-armA.log" 2>/dev/null | sort -u > "$STAMP-armA.set"
+A_COUNT="$(wc -l < "$STAMP-armA.set" | tr -d ' ')"
+ENVISH="$(grep -cE "error TS(2305|2307|2724)" "$STAMP-armA.log" 2>/dev/null)"; ENVISH="${ENVISH:-0}"
 
-if [ "$A_COUNT" -gt 0 ]; then
-  # Distinguish a genuinely failing repo from an incomplete local install. A baseline
-  # dominated by TS2305/TS2724/TS2307 ("has no exported member" / "cannot find module")
-  # means dependency types were never generated — `yarn install --mode=skip-build` does
-  # exactly this — and says nothing about the code. Reporting both as "baseline failing"
-  # would send the operator hunting a repo defect that is not there.
-  # Report the module/export share; do not classify from it. A threshold here would be
-  # a number I cannot justify — 124/280 on this repo is plainly an install artifact, yet
-  # trips no majority rule, because TS2339 and TS7006 are themselves downstream of the
-  # missing types. Surface the signal, leave the judgement with the operator.
-  ENVISH="$(grep -coE "error TS(2305|2307|2724)" "$STAMP-armA.log" || echo 0)"
-  VERDICT="baseline failing — no conclusion available"
-  CODE=2; B_COUNT="not-run"; NEW_ERRS=""
-  : > "$STAMP-armB.log"
+apply()  { awk -v n="$1" -v r="$2" 'NR==n{print r; next}{print}' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"; }
+insert() { awk -v n="$1" -v r="$2" 'NR==n{print; print r; next}{print}' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"; }
+if [ -n "$PROBE" ] && [ -n "$PROBE_LINE" ] && [ -n "$LINE" ] && [ "$PROBE_LINE" -gt "$LINE" ]; then
+  insert "$PROBE_LINE" "$PROBE"; apply "$LINE" "$REPLACE"
 else
-  # Apply substitution and/or probe, highest line first so numbering holds.
-  apply() { awk -v n="$1" -v r="$2" 'NR==n{print r; next}{print}' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"; }
-  insert() { awk -v n="$1" -v r="$2" 'NR==n{print; print r; next}{print}' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"; }
-  if [ -n "$PROBE" ] && [ -n "$PROBE_LINE" ] && [ -n "$LINE" ] && [ "$PROBE_LINE" -gt "$LINE" ]; then
-    insert "$PROBE_LINE" "$PROBE"; apply "$LINE" "$REPLACE"
-  else
-    [ -n "$LINE" ] && apply "$LINE" "$REPLACE"
-    [ -n "$PROBE" ] && [ -n "$PROBE_LINE" ] && insert "$PROBE_LINE" "$PROBE"
-  fi
+  [ -n "$LINE" ] && apply "$LINE" "$REPLACE"
+  [ -n "$PROBE" ] && [ -n "$PROBE_LINE" ] && insert "$PROBE_LINE" "$PROBE"
+fi
 
-  $TSC > "$STAMP-armB.log" 2>&1
-  B_COUNT="$(grep -c "error TS" "$STAMP-armB.log" 2>/dev/null || echo 0)"
-  NEW_ERRS="$(grep -oE "error TS[0-9]+.*" "$STAMP-armB.log" 2>/dev/null | sort -u | head -12)"
-  restore; trap - EXIT INT TERM
-  if [ "$B_COUNT" -gt 0 ]; then VERDICT="divergence surfaced"; CODE=0; else VERDICT="substitution silent"; CODE=1; fi
+$TSC > "$STAMP-armB.log" 2>&1
+grep -oE "^[^ ]+\([0-9]+,[0-9]+\): error TS[0-9]+" "$STAMP-armB.log" 2>/dev/null | sort -u > "$STAMP-armB.set"
+B_COUNT="$(wc -l < "$STAMP-armB.set" | tr -d ' ')"
+restore; trap - EXIT INT TERM
+
+NEW_ERRS="$(comm -13 "$STAMP-armA.set" "$STAMP-armB.set" | head -12)"
+NEW_COUNT="$(comm -13 "$STAMP-armA.set" "$STAMP-armB.set" | wc -l | tr -d ' ')"
+
+if [ "$NEW_COUNT" -gt 0 ]; then
+  VERDICT="divergence surfaced"; CODE=0
+else
+  VERDICT="substitution silent"; CODE=1
 fi
 
 HEAD_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
@@ -105,7 +100,7 @@ TS_V="$(yarn tsc --version 2>/dev/null | tail -1 || echo unknown)"
 
 cat > "$STAMP.json" <<JSON
 { "verdict": "$VERDICT", "exit": $CODE, "file": "$FILE",
-  "arm_a_errors": $A_COUNT, "arm_b_errors": ${B_COUNT:-null},
+  "arm_a_errors": $A_COUNT, "arm_b_errors": $B_COUNT, "new_under_substitution": $NEW_COUNT,
   "env": { "head": "$HEAD_SHA", "tracked_changes": $DIRTY, "typescript": "$TS_V" },
   "logs": ["$STAMP-armA.log", "$STAMP-armB.log"] }
 JSON
@@ -113,27 +108,26 @@ JSON
 {
   echo "### D6 — authored-vs-authoritative substitution · \`$VERDICT\`"
   echo
-  echo "| Arm | Change | \`tsc\` errors |"
+  echo "| Arm | Change | distinct \`tsc\` errors |"
   echo "|---|---|---|"
   echo "| A — baseline | none | $A_COUNT |"
-  echo "| B — substituted | \`$FILE\`${LINE:+:$LINE}${PROBE:+ + typed sink} | ${B_COUNT} |"
+  echo "| B — substituted | \`$FILE\`${LINE:+:$LINE}${PROBE:+ + typed sink} | $B_COUNT |"
+  echo "| **new under substitution** | | **$NEW_COUNT** |"
   echo
-  if [ "$CODE" = "2" ] && [ "${ENVISH:-0}" -gt 0 ]; then
-    echo "Arm A did not pass, so arm B was not run and **nothing about the types is established**."
-    echo
-    echo "\`$ENVISH\` of \`$A_COUNT\` baseline errors are module/export resolution"
-    echo "(TS2305/TS2307/TS2724). Those usually mean dependency types were never generated —"
-    echo "a skipped install step — rather than a defect in this repo, and other codes can be"
-    echo "downstream of the same cause. Confirm the toolchain is complete before reading"
-    echo "anything into this lane."
-  elif [ -n "$NEW_ERRS" ]; then
-    echo "Errors surfaced only under substitution:"; echo; echo '```'; printf '%s\n' "$NEW_ERRS"; echo '```'
-  elif [ "$CODE" = "1" ]; then
-    echo "**Silent — this is not proof of agreement.** Existing call sites may satisfy both shapes."
+  if [ "$NEW_COUNT" -gt 0 ]; then
+    echo "Errors present in B and absent in A — what the local type was concealing:"
+    echo; echo '```'; printf '%s\n' "$NEW_ERRS"; echo '```'
+  else
+    echo "**Silent — this is not proof of agreement.** Existing call sites may satisfy both"
+    echo "shapes; indexing and \`.match()\` compile against \`string\` and \`string[]\` alike."
     echo "Re-run with \`--probe\` to inject a sink only the authoritative type accepts."
   fi
+  if [ "$A_COUNT" -gt 0 ]; then
+    echo
+    echo "<sub>Baseline carried $A_COUNT pre-existing error(s) (${ENVISH} module/export). These are"
+    echo "subtracted, not disqualifying — only errors new under substitution are the finding.</sub>"
+  fi
   echo
-  echo "<sub>Produced by \`tsc-substitution.sh\`; source restored after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · $TS_V. Logs: \`$STAMP-armA.log\`, \`$STAMP-armB.log\`.</sub>"
 } > "$STAMP.md"
 
 printf 'tsc-substitution: %s (exit %s)\n  %s\n  %s\n' "$VERDICT" "$CODE" "$STAMP.json" "$STAMP.md" >&2
