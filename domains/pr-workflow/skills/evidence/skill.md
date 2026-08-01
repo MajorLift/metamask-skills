@@ -200,6 +200,29 @@ operators on different machines produce comparable results or visibly do not.
 Prefer this over a hand-run test in every case. A hand-run test yields a number you then retype,
 which returns the provenance to you and reintroduces exactly the problem the probe solves.
 
+### `capture.sh` — for every lane that already has an analysis script
+
+`retention-scan.py` (C9), `policy-audit.py` (D3), and any jest or selector probe all print to
+stdout, which makes the operator the capture device. Wrap them instead:
+
+```bash
+scripts/capture.sh --label bgconn-retention --lane "C9 retention-path analysis" \
+  --claim "every retention primitive this diff introduces is paired with a release" \
+  -- python3 retention-scan.py "ui/store/background-connection.ts:pr.patch"
+```
+
+Writes `<label>.log` (verbatim), `<label>.json`, and `<label>.md` — the attachable block, quoting
+the log rather than summarising it — with `HEAD`, tracked-change count, node, python, and
+`yarn.lock` hash pinned in each. The wrapped command's exit code passes through unchanged.
+
+**`--verdict` is stated by the caller, never inferred from the exit code.** A wrapped tool's exit
+convention is its own: `policy-audit.py` exits `0` while listing sixteen newly granted
+capabilities, so inferring would print "pass" over a page of findings. With no `--verdict`, the
+artifact says *ran to completion — read the output, no verdict asserted*, which is the honest
+default.
+
+A crashing command produces an artifact containing the traceback, not a fabricated result.
+
 ### Canonical output shape
 
 Every validation-run output — PR comment *or* PR-body section — uses exactly this, so re-runs
