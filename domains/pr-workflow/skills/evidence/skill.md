@@ -145,7 +145,58 @@ Stop when each claim has one trustworthy artifact that would have shown its fals
 ## Publishing the evidence bundle
 
 **Public, outward-facing — always confirm the rendered section with the user before writing
-a PR body.** Full recipe, markers, image re-hosting, recordings, and the privacy scrub:
+a PR body.**
+
+### Non-negotiables — these are here, not in a reference, because a requirement you have to fetch is advisory
+
+**1. Ship an artifact the reader can check without trusting you.** Terminal text you pasted is
+indistinguishable from terminal text you invented; it carries the weight of your assertion, not
+of a measurement. Running the check justifies *your* belief. It becomes *evidence* only when the
+reader can confirm it independently: a committed test CI executes, a link to a run, a capture with
+visual provenance, an artifact at a URL. **If every character of the output is one you typed, you
+have published an assertion.**
+
+**2. `proven` requires execution; reading yields `unverified`.** Reading a test establishes its
+shape, never its power. A test is evidence when it *fails* on the base arm — so run arm B, including
+against your own probe. A probe that passes with the mechanism deleted is measuring something else.
+
+**3. There is no "what would close it" section.** If you know what would close the falsifier, close
+it. Three legal endings: proven with artifact attached · unproven, stated flatly and nothing
+prescribed · an open question that is genuinely a human's product decision. Imperative-mood prose
+(*run*, *switch*, *assert*) means the artifact does not exist.
+
+**4. Write to the reviewer who arrives, not whoever commissioned the run.** They have a stake in
+this PR and none in your tooling. Cut calibration rationale, prior hypotheses, and corrections to
+drafts they never saw. One line of disclosure that the output is automated and needs no action is
+for them; everything explaining why you are running this is not.
+
+**5. Delete findings whose entire content is test quality** — code correct, test weak — unless the
+untested path touches funds, keys, persisted state, user-visible wrongness, or silent corruption.
+
+**6. Privacy and security findings are routed, never published here.** File them in the private
+planning tracker. Subject matter triggers this, not severity: the code cannot distinguish a missing
+gate from a deliberate one.
+
+### Canonical output shape
+
+Every validation-run output — PR comment *or* PR-body section — uses exactly this, so re-runs
+replace idempotently instead of accumulating:
+
+```markdown
+<!-- VALIDATION_RUN_START -->
+## 🧪 Validation Run
+
+**Verdict:** ✅ proven — **Claim:** <one-line falsifiable behavior under test>
+head `<sha>` · <YYYY-MM-DD> · lanes: <lane ids>
+
+<claim → artifact table; every claim binds its artifact>
+<!-- VALIDATION_RUN_END -->
+```
+
+Verdict icons: `✅` proven · `❌` failed · `ℹ️` otherwise. Never `❌` for a gap in *evidence* — that
+reads as a verdict on the author's work.
+
+Full recipe — image re-hosting, recordings, AEP mirroring, the privacy scrub:
 **[references/evidence-publishing.md](references/evidence-publishing.md).**
 
 The parts that decide *whether* to publish, rather than how:
