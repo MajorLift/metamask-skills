@@ -330,19 +330,40 @@ inconclusive arm is not offset by another lane passing.
 5. **State the residue.** Name the part of the claim no runner reached, in the artifact, rather
    than letting the covered part imply coverage.
 
-### Known gap: conformance to a written decision
+### The bar: float concerns, do not close them
 
-No runner here checks a diff against an architectural decision record. That class is real and
-expensive — a merged PR added deeplinks accepting unsigned parameters, justified as "read-only
-screens, so unsigned routing params are safe", and was reverted after review. The justification
-misreads the model: signed links skip the warning interstitial, so an unsigned parameter inherits
-the signature's trust without being covered by it, which is exploitable regardless of whether the
-destination writes anything.
+A run succeeds when it puts **concerns, falsifiers, and avenues of deeper inquiry** in front of a
+reviewer. It is not required to catch every concern, resolve each correctly, or carry any to a
+conclusion. That is a lower bar than being right, and a much higher one than staying silent
+unless certain.
 
-Nothing in the table above would have found that. It is not a measurement, a count, or a diff
-delta — it is a rule stated in a document, violated by code that looks unremarkable. Until a
-conformance runner exists, **route ADR-governed surfaces to a human reviewer and say in the
-artifact that you did**.
+Three consequences worth being explicit about:
+
+**A coverage gap is not a failed run.** No runner here checks a diff against an architectural
+decision record. A run that says *"this touches deeplinks, which are ADR-governed; the falsifier
+is whether these parameters are covered by the signature"* has done its job while resolving
+nothing.
+
+**Incomplete analysis is reportable, not suppressible.** Withholding anything short of fully
+established throws away the run's actual product. An unresolved concern with a named falsifier is
+the deliverable.
+
+**This does not license speculation.** Floating a concern still requires naming what would settle
+it. *"This might be unsafe"* is noise. *"Unsigned parameters on a signed link skip the
+interstitial — check whether the signature covers them"* is actionable. The difference is whether
+the next step is stated.
+
+The runners raise questions with evidence attached; they are not oracles. Their limits are
+publishable content, which is why the table above lists what each cannot establish.
+
+**Worked case.** A merged PR added deeplinks accepting unsigned parameters, justified as
+"read-only screens, so unsigned routing params are safe". It was reverted after review. The
+justification misreads the model: signed links skip the warning interstitial, so an unsigned
+parameter inherits the signature's trust without being covered by it — exploitable whether or not
+the destination writes anything, via navigation hijacking, request forgery, phishing through
+trusted chrome, or attribution poisoning. No runner would have caught it. A run that merely
+flagged *"deeplink surface, ADR-0011 governs parameter signing, is this param in the signed
+set?"* would have been enough.
 
 ### Canonical output shape
 
