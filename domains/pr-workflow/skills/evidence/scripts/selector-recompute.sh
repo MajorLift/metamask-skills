@@ -63,7 +63,12 @@ MOD_BASE="./$(basename "$MODULE")"
 DEPTH="$(dirname "$MODULE" | tr -cd '/' | wc -c | tr -d ' ')"
 UP=""; i=0; while [ "$i" -le "$DEPTH" ]; do UP="../$UP"; i=$((i+1)); done
 
-cleanup() { rm -f "$PROBE"; }
+# The probe used to be deleted on exit, which left the exhibit quoting
+# `yarn jest <generated probe>` — a command line that cannot be run, printed where a
+# reader expects a reproducible one. It is kept alongside the artifact instead, and
+# removed from the working tree so the repo is left clean.
+KEEP_PROBE="$STAMP.probe.test.ts"
+cleanup() { [ -f "$PROBE" ] && cp "$PROBE" "$KEEP_PROBE"; rm -f "$PROBE"; }
 trap cleanup EXIT INT TERM
 
 cat > "$PROBE" <<PROBEEOF
@@ -167,11 +172,13 @@ JSON
   fi
   echo
   echo '```console'
-  echo "\$ yarn jest <generated probe>"
-  echo "$LINE"
+  echo "\$ yarn jest $PROBE"
+  # The tool's own output, not a line this script composed. A summary a script writes
+  # about its own run carries the script's word; the runner's stdout carries the run's.
+  grep -E "RECOMPUTE_PROBE |^Test Suites:|^Tests: |^Time: " "$STAMP.log" | head -8
   echo '```'
   echo
-  echo "<sub>Produced by \`selector-recompute.sh\` via reselect's own counter; the probe is generated, run, and deleted. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`.</sub>"
+  echo "<sub>Produced by \`selector-recompute.sh\` via reselect's own counter; the probe is generated, run, and kept beside this artifact. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`.</sub>"
 } > "$STAMP.md"
 
 printf 'selector-recompute: %s\n  %s\n  %s\n' "$VERDICT" "$STAMP.json" "$STAMP.md" >&2
