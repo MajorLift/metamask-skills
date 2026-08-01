@@ -171,6 +171,11 @@ JSON
   echo "$LINE"
   echo '```'
   echo
+  echo "**Open for review** — measured against one fixture with one perturbed key. A selector"
+  echo "unmoved here can still recompute under state this fixture does not reach, and the count"
+  echo "says nothing about the cost of each recomputation. Worth a look if the fixture is thin"
+  echo "relative to the shapes this selector sees in production."
+  echo
   echo "<sub>Produced by \`selector-recompute.sh\` via reselect's own counter; the probe is generated, run, and deleted. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`. Log: \`$STAMP.log\`.</sub>"
 } > "$STAMP.md"
 

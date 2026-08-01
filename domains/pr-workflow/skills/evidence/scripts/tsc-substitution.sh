@@ -128,6 +128,11 @@ JSON
     echo "subtracted, not disqualifying — only errors new under substitution are the finding.</sub>"
   fi
   echo
+  echo "**Open for review** — the compiler answers only what the probe asks. A silent arm B means"
+  echo "no call site in this tree distinguishes the two shapes, which is not agreement: a"
+  echo "divergence reachable only at runtime, or only from a caller outside this repo, will not"
+  echo "appear here. Worth a look at whether the authoritative type is itself correct."
+  echo
   echo "<sub>Produced by \`tsc-substitution.sh\`; source restored after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · $TS_V. Logs: \`$STAMP-armA.log\`, \`$STAMP-armB.log\`.</sub>"
   echo
 } > "$STAMP.md"
