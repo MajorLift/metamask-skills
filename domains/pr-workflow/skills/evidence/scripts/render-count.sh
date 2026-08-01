@@ -121,7 +121,7 @@ JSON
   echo "an interaction this probe does not perform. The probe also does not check that the"
   echo "consumer renders the same OUTPUT, only that it renders fewer times."
   echo
-  echo "<sub>Produced by \`render-count.sh\`; the arm-B edit is reverted after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`. Logs: \`$STAMP-armA.log\`, \`$STAMP-armB.log\`.</sub>"
+  echo "<sub>Produced by \`render-count.sh\`; the arm-B edit is reverted after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`. Logs: \`${STAMP##*/}-armA.log\`, \`${STAMP##*/}-armB.log\`.</sub>"
 } > "$STAMP.md"
 
 printf 'render-count: %s\n  %s\n  %s\n' "$VERDICT" "$STAMP.json" "$STAMP.md" >&2
