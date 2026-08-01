@@ -10,7 +10,8 @@
 # This wraps any command so the ARTIFACT is written by the tool. Nothing is retyped.
 #
 #   capture.sh --label <slug> --lane <id> --claim "<under test>" [--verdict <word>]
-#              [--open "<what this run leaves open>"] -- <cmd...>
+#              [--open "<what this run leaves open>"]
+#              [--max-log-lines N | --head-lines N --tail-lines N] -- <cmd...>
 #
 # --verdict is stated by the caller, never inferred from the exit code: a wrapped
 # tool's exit convention is its own, and guessing prints "pass" over real findings.
@@ -33,6 +34,7 @@
 set -uo pipefail
 
 OUT_DIR="evidence-artifacts"; LABEL=""; LANE=""; CLAIM=""; MAXLOG=120; VERDICT=""; OPEN=""
+HEADL=""; TAILL=""
 die() { printf 'capture: %s\n' "$1" >&2; exit 3; }
 
 while [ $# -gt 0 ]; do
@@ -44,6 +46,11 @@ while [ $# -gt 0 ]; do
     --open)  OPEN="${2:-}"; shift 2 ;;
     --out)   OUT_DIR="${2:-}"; shift 2 ;;
     --max-log-lines) MAXLOG="${2:-}"; shift 2 ;;
+    # Two thirds head / one third tail is a guess about where the finding is. For a
+    # tool that escalates at the bottom the useful split is the other way round, and
+    # the caller knows which shape its tool has.
+    --head-lines) HEADL="${2:-}"; shift 2 ;;
+    --tail-lines) TAILL="${2:-}"; shift 2 ;;
     -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
     --) shift; break ;;
     *) die "unknown argument: $1 (did you forget -- before the command?)" ;;
@@ -104,15 +111,16 @@ JSON
   echo
   echo '```console'
   echo "\$ $CMD_STR"
-  if [ "$LINES" -gt "$MAXLOG" ]; then
+  BUDGET=$(( ${HEADL:-0} + ${TAILL:-0} )); [ "$BUDGET" -gt 0 ] || BUDGET="$MAXLOG"
+  if [ "$LINES" -gt "$BUDGET" ]; then
     # Elide the middle, never the end. A tool that escalates does it last:
     # policy-audit.py prints a per-grant worklist first and its RAISE WITH A HUMAN
     # section at the bottom, so head-truncation cuts exactly the rows that needed a
     # reader and leaves a wall of checkboxes in their place.
-    H=$(( MAXLOG * 2 / 3 )); T=$(( MAXLOG - H ))
+    H="${HEADL:-$(( MAXLOG * 2 / 3 ))}"; T="${TAILL:-$(( MAXLOG - H ))}"
     head -n "$H" "$STAMP.log"
     printf '\n… %s lines elided from the middle — full output in %s\n\n' \
-      "$((LINES - MAXLOG))" "$STAMP.log"
+      "$((LINES - BUDGET))" "${STAMP##*/}.log"
     tail -n "$T" "$STAMP.log"
   else
     cat "$STAMP.log"
