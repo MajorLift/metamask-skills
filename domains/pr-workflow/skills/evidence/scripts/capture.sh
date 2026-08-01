@@ -105,8 +105,15 @@ JSON
   echo '```console'
   echo "\$ $CMD_STR"
   if [ "$LINES" -gt "$MAXLOG" ]; then
-    head -n "$MAXLOG" "$STAMP.log"
-    echo "… $((LINES - MAXLOG)) further lines in $STAMP.log"
+    # Elide the middle, never the end. A tool that escalates does it last:
+    # policy-audit.py prints a per-grant worklist first and its RAISE WITH A HUMAN
+    # section at the bottom, so head-truncation cuts exactly the rows that needed a
+    # reader and leaves a wall of checkboxes in their place.
+    H=$(( MAXLOG * 2 / 3 )); T=$(( MAXLOG - H ))
+    head -n "$H" "$STAMP.log"
+    printf '\n… %s lines elided from the middle — full output in %s\n\n' \
+      "$((LINES - MAXLOG))" "$STAMP.log"
+    tail -n "$T" "$STAMP.log"
   else
     cat "$STAMP.log"
   fi

@@ -10,12 +10,17 @@
 #
 # Generates a probe that mounts a provider with a counting consumer, forces the
 # parent to re-render N times with the memoised value unchanged, and reports the
-# consumer's render count. Arm B re-runs with the memo defeated, so the delta is
+# consumer's render count. Arm B re-runs with one line changed, so the delta is
 # attributable rather than assumed.
 #
 # Usage:
 #   render-count.sh --probe <probe.test.tsx> [--defeat <file> --defeat-line <n> --defeat-with <text>]
-#                   [--label <slug>] [--out <dir>]
+#                   [--arm-b <label>] [--label <slug>] [--out <dir>]
+#
+# Arm B is "the memo defeated" by default, which is the shape when a PR ADDS
+# memoisation. When a PR is the one under suspicion the arms invert — arm B applies
+# the candidate fix — and calling that "defeated" prints the reading backwards. So
+# the label is caller-stated, like every other verdict word in this suite.
 #
 # The probe is supplied rather than generated: a provider's mount requirements
 # are specific to the component, and a generated one would either be wrong or
@@ -31,6 +36,7 @@
 set -uo pipefail
 
 OUT_DIR="evidence-artifacts"; LABEL=""; PROBE=""; DEFEAT=""; DEFEAT_LINE=""; DEFEAT_WITH=""
+ARM_B="memo defeated"
 die() { printf 'render-count: %s\n' "$1" >&2; exit 3; }
 
 while [ $# -gt 0 ]; do
@@ -39,6 +45,7 @@ while [ $# -gt 0 ]; do
     --defeat)      DEFEAT="${2:-}"; shift 2 ;;
     --defeat-line) DEFEAT_LINE="${2:-}"; shift 2 ;;
     --defeat-with) DEFEAT_WITH="${2:-}"; shift 2 ;;
+    --arm-b)       ARM_B="${2:-}"; shift 2 ;;
     --label)       LABEL="${2:-}"; shift 2 ;;
     --out)         OUT_DIR="${2:-}"; shift 2 ;;
     -h|--help)     sed -n '2,30p' "$0"; exit 0 ;;
@@ -75,8 +82,8 @@ else
   : > "$STAMP-armB.log"
 fi
 
-if [ -n "$B" ] && [ "$B" = "$A" ]; then VERDICT="no delta — memo not attributable"; CODE=1
-elif [ -n "$B" ]; then VERDICT="delta measured: $A → $B renders with the memo defeated"; CODE=0
+if [ -n "$B" ] && [ "$B" = "$A" ]; then VERDICT="no delta — arm B changed nothing measurable"; CODE=1
+elif [ -n "$B" ]; then VERDICT="delta measured: $A → $B renders with $ARM_B"; CODE=0
 else VERDICT="baseline only: $A consumer renders"; CODE=0; fi
 
 HEAD_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
@@ -98,12 +105,12 @@ JSON
   echo "| Arm | Change | consumer renders |"
   echo "|---|---|---|"
   echo "| A — as committed | none | ${A:-?} |"
-  [ -n "$B" ] && echo "| B — memo defeated | \`$DEFEAT:$DEFEAT_LINE\` | $B |"
+  [ -n "$B" ] && echo "| B — $ARM_B | \`$DEFEAT:$DEFEAT_LINE\` | $B |"
   echo
   echo '```console'
   echo "\$ yarn jest $PROBE"
   echo "$A_LINE"
-  [ -n "$B_LINE" ] && { echo "\$ yarn jest $PROBE   # memo defeated"; echo "$B_LINE"; }
+  [ -n "$B_LINE" ] && { echo "\$ yarn jest $PROBE   # $ARM_B"; echo "$B_LINE"; }
   echo '```'
   echo
   echo "This counts renders of one named consumer across a defined interaction. It is not a count"
@@ -114,7 +121,7 @@ JSON
   echo "an interaction this probe does not perform. The probe also does not check that the"
   echo "consumer renders the same OUTPUT, only that it renders fewer times."
   echo
-  echo "<sub>Produced by \`render-count.sh\`; the defeat edit is reverted after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`. Logs: \`$STAMP-armA.log\`, \`$STAMP-armB.log\`.</sub>"
+  echo "<sub>Produced by \`render-count.sh\`; the arm-B edit is reverted after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`. Logs: \`$STAMP-armA.log\`, \`$STAMP-armB.log\`.</sub>"
 } > "$STAMP.md"
 
 printf 'render-count: %s\n  %s\n  %s\n' "$VERDICT" "$STAMP.json" "$STAMP.md" >&2
