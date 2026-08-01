@@ -147,7 +147,7 @@ cat > "$STAMP.json" <<JSON
 JSON
 
 {
-  echo "### C4 — \`$EXPORT\` recomputation count"
+  echo "### \`$EXPORT\` recomputation count"
   echo
   echo "**Verdict:** $VERDICT"
   echo
@@ -171,14 +171,16 @@ JSON
   echo "$LINE"
   echo '```'
   echo
-  echo "**Open for review** — measured against one fixture with one perturbed key. A selector"
-  echo "unmoved here can still recompute under state this fixture does not reach, and the count"
-  echo "says nothing about the cost of each recomputation. Worth a look if the fixture is thin"
-  echo "relative to the shapes this selector sees in production."
-  echo
-  echo "<sub>Produced by \`selector-recompute.sh\` via reselect's own counter; the probe is generated, run, and deleted. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`. Log: \`${STAMP##*/}.log\`.</sub>"
+  echo "<sub>Produced by \`selector-recompute.sh\` via reselect's own counter; the probe is generated, run, and deleted. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`.</sub>"
 } > "$STAMP.md"
 
 printf 'selector-recompute: %s\n  %s\n  %s\n' "$VERDICT" "$STAMP.json" "$STAMP.md" >&2
+# The limits below are identical on every run: they describe the instrument, not the
+# change under review. Pasted into a PR comment they read as boilerplate to a reviewer
+# who has no stake in this tooling, so they go to stderr and to the .json instead. The
+# orchestrator reads them and writes ONE open question about THIS diff.
+printf 'limits: one fixture, one perturbed key. A selector unmoved here can still recompute
+under state this fixture does not reach, and the count says nothing about the cost of each
+recomputation.\n' >&2
 [ -n "$A" ] || exit 2
 exit 0

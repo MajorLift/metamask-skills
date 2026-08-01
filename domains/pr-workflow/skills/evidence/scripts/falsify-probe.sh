@@ -148,16 +148,16 @@ JSON
   esac
   [ -n "$FAILED_NAMES" ] && { echo; echo "Failing under mutation:"; echo; printf '%s\n' "$FAILED_NAMES" | sed 's/^/- /'; }
   echo
-  echo "**Open for review** — this run mutated one line of one file. It says nothing about"
-  echo "other paths into the same mechanism, whether the mechanism is reachable in production,"
-  echo "or whether the behaviour it guards is the right behaviour. A falsifying test proves the"
-  echo "test has power, not that the fix is correct."
-  case "$VERDICT" in
-    vacuous) echo "Worth a look: the mechanism is unguarded by this suite — what else depends on it?" ;;
-  esac
-  echo
-  echo "<sub>Produced by \`falsify-probe.sh\` at \`$HEAD_SHA\` · node \`$NODE_V\` · yarn.lock \`$LOCK_SHA\` · $DIRTY tracked changes. Logs: \`${STAMP##*/}-armA.log\`, \`${STAMP##*/}-armB.log\`.</sub>"
+  echo "<sub>Produced by \`falsify-probe.sh\` at \`$HEAD_SHA\` · node \`$NODE_V\` · yarn.lock \`$LOCK_SHA\` · $DIRTY tracked changes.</sub>"
 } > "$STAMP.md"
 
 printf 'falsify-probe: %s (exit %s)\n  %s\n  %s\n' "$VERDICT" "$CODE" "$STAMP.json" "$STAMP.md" >&2
+# The limits below are identical on every run: they describe the instrument, not the
+# change under review. Pasted into a PR comment they read as boilerplate to a reviewer
+# who has no stake in this tooling, so they go to stderr and to the .json instead. The
+# orchestrator reads them and writes ONE open question about THIS diff.
+printf 'limits: one line of one file was mutated. Says nothing about other paths into the
+same mechanism, whether it is reachable in production, or whether the guarded behaviour is
+correct. A falsifying test proves the test has power, not that the fix is right.%s\n' \
+  "$([ "$VERDICT" = vacuous ] && printf '\n  vacuous: the mechanism is unguarded by this suite — what else depends on it?')" >&2
 exit "$CODE"

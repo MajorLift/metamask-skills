@@ -106,7 +106,7 @@ cat > "$STAMP.json" <<JSON
 JSON
 
 {
-  echo "### D6 — authored-vs-authoritative substitution · \`$VERDICT\`"
+  echo "### Authored type vs authoritative source · \`$VERDICT\`"
   echo
   echo "| Arm | Change | distinct \`tsc\` errors |"
   echo "|---|---|---|"
@@ -128,14 +128,16 @@ JSON
     echo "subtracted, not disqualifying — only errors new under substitution are the finding.</sub>"
   fi
   echo
-  echo "**Open for review** — the compiler answers only what the probe asks. A silent arm B means"
-  echo "no call site in this tree distinguishes the two shapes, which is not agreement: a"
-  echo "divergence reachable only at runtime, or only from a caller outside this repo, will not"
-  echo "appear here. Worth a look at whether the authoritative type is itself correct."
-  echo
-  echo "<sub>Produced by \`tsc-substitution.sh\`; source restored after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · $TS_V. Logs: \`${STAMP##*/}-armA.log\`, \`${STAMP##*/}-armB.log\`.</sub>"
+  echo "<sub>Produced by \`tsc-substitution.sh\`; source restored after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · $TS_V.</sub>"
   echo
 } > "$STAMP.md"
 
 printf 'tsc-substitution: %s (exit %s)\n  %s\n  %s\n' "$VERDICT" "$CODE" "$STAMP.json" "$STAMP.md" >&2
+# The limits below are identical on every run: they describe the instrument, not the
+# change under review. Pasted into a PR comment they read as boilerplate to a reviewer
+# who has no stake in this tooling, so they go to stderr and to the .json instead. The
+# orchestrator reads them and writes ONE open question about THIS diff.
+printf 'limits: the compiler answers only what the probe asks. A silent arm B means no call
+site in this tree distinguishes the two shapes, which is not agreement — a divergence
+reachable only at runtime, or from a caller outside this repo, will not appear here.\n' >&2
 exit "$CODE"

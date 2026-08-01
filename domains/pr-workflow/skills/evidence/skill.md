@@ -377,9 +377,29 @@ replace idempotently instead of accumulating:
 **Verdict:** ✅ proven — **Claim:** <one-line falsifiable behavior under test>
 head `<sha>` · <YYYY-MM-DD> · lanes: <lane ids>
 
-<claim → artifact table; every claim binds its artifact>
+<one sentence: what kind of evidence follows>
+
+<the captured artifacts, unfolded>
+
+**Follows from the above**
+<terse bullets — each one a consequence of a number in an artifact above>
+
+**Open for review:** <the single question this run hands to a human, about THIS diff>
 <!-- VALIDATION_RUN_END -->
 ```
+
+**The exhibits are the comment.** A reviewer opens this to see a measurement, so the
+captured blocks go in the body, not behind a `<details>`, and they should outweigh your
+prose — 70% exhibit is a reasonable floor. Everything you write around them is a caption.
+
+**Never restate an artifact's number in your own prose.** A figure that appears only in a
+sentence you typed is a figure on your word, which is the one thing this whole skill exists
+to avoid. Cite by pointing at the block; a summary table above the exhibits duplicates the
+artifact's own table and downgrades it.
+
+**Prose is the failure mode.** Lead with the conclusion, then the exhibits, then bullets.
+Paragraphs of explanation read as an infodump and bury the finding; if a bullet needs three
+sentences the exhibit is not doing its job.
 
 Verdict icons: `✅` proven · `❌` failed · `ℹ️` otherwise. Never `❌` for a gap in *evidence* — that
 reads as a verdict on the author's work.
@@ -400,6 +420,27 @@ The parts that decide *whether* to publish, rather than how:
   lane inventory.
 - **Don't restate CI.** Lint, build, and test results are already on the Checks tab.
 - **Scrub** local paths and usernames; failure summaries leak them.
+
+### The reader is a reviewer on this PR, not a user of this skill
+
+They have a stake in the change and none in the tooling. Everything internal to how the
+evidence was produced is noise to them, and several of these leaked into a published run
+before anyone noticed:
+
+| Leaks | Publish instead |
+|---|---|
+| Lane ids — `B3`, `C4`, `D3` | The category in words: *falsifying test*, *render count* |
+| A runner's generic limits, identical on every run | One open question about **this** diff |
+| The runner's own name as though it means something | `Produced by <tool>` provenance, and nothing more |
+| Your process — drafts, retractions, what you tried first | The measurement as it stands now |
+| Anything calibrating the skill rather than the change | Nothing; delete it |
+
+The runners cooperate with this: their generic limits go to stderr and to the `.json`, not
+into the `.md` exhibit, precisely so a reviewer never reads the same paragraph about the
+instrument under three consecutive blocks. Read them there and synthesise **one** question.
+
+The test: would this sentence still be worth reading if the skill did not exist? If it is
+only interesting to someone who knows how the tool works, cut it.
 
 ## Validation output format
 

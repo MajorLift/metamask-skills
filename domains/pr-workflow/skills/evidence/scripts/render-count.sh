@@ -98,7 +98,7 @@ cat > "$STAMP.json" <<JSON
 JSON
 
 {
-  echo "### C4 — consumer render count"
+  echo "### Consumer render count"
   echo
   echo "**Verdict:** $VERDICT"
   echo
@@ -116,13 +116,15 @@ JSON
   echo "This counts renders of one named consumer across a defined interaction. It is not a count"
   echo "of consumers, and a larger consumer count does not imply a larger effect."
   echo
-  echo "**Open for review** — one named consumer, one interaction. Other consumers of the same"
-  echo "provider are unmeasured, and a consumer that renders once here may render freely under"
-  echo "an interaction this probe does not perform. The probe also does not check that the"
-  echo "consumer renders the same OUTPUT, only that it renders fewer times."
-  echo
-  echo "<sub>Produced by \`render-count.sh\`; the arm-B edit is reverted after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`. Logs: \`${STAMP##*/}-armA.log\`, \`${STAMP##*/}-armB.log\`.</sub>"
+  echo "<sub>Produced by \`render-count.sh\`; the arm-B edit is reverted after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`.</sub>"
 } > "$STAMP.md"
 
 printf 'render-count: %s\n  %s\n  %s\n' "$VERDICT" "$STAMP.json" "$STAMP.md" >&2
+# The limits below are identical on every run: they describe the instrument, not the
+# change under review. Pasted into a PR comment they read as boilerplate to a reviewer
+# who has no stake in this tooling, so they go to stderr and to the .json instead. The
+# orchestrator reads them and writes ONE open question about THIS diff.
+printf 'limits: one named consumer, one interaction. Other consumers are unmeasured, and one
+that renders once here may render freely under an interaction this probe does not perform.
+Counts renders, not whether the output is equivalent.\n' >&2
 exit "$CODE"
