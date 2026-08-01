@@ -272,6 +272,28 @@ install rather than a repo defect. It does not classify from that ratio — on a
 280 errors were install artifacts while tripping no majority rule, because other codes are
 downstream of the same cause.
 
+### `attest-gate.sh` — run this before publishing anything
+
+Eight mechanical checks over the artifact as it will ship. No model is asked anything until
+these pass, because a model asked "is this good evidence?" answers from inside the frame that
+produced the text.
+
+```bash
+scripts/attest-gate.sh comment.md            # exit 0 = proceed, 1 = BLOCKED
+```
+
+Marker pair · canonical header · verdict line · environment pinned · **a captured artifact** ·
+no "what would close it" · no first-person process narration · `proven` only with an execution
+artifact.
+
+Check 5 is the one that matters and the easiest to slip past: if every character of the output
+is one the operator typed, the run published an assertion. Pass `--reference <showcase>` to
+compare capture density against a known-good artifact.
+
+This is phase 0 of [`/attest`](https://github.com/MajorLift/Reprise); phases 1 and 2 dispatch
+`/outframe ‖ /missing ‖ /press` then `/trim` to fresh instances, because those passes cannot be
+self-run — the author is positionally the wrong reader.
+
 ### Canonical output shape
 
 Every validation-run output — PR comment *or* PR-body section — uses exactly this, so re-runs
