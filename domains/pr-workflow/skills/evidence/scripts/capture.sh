@@ -126,7 +126,7 @@ JSON
     echo "not cover was not recorded, which is not the same as it covering everything."
   fi
   echo
-  echo "<sub>Produced by \`capture.sh\`, not transcribed. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\` · \`$PY_V\` · yarn.lock \`$LOCK_SHA\`. Raw log: \`$STAMP.log\`.</sub>"
+  echo "<sub>Produced by \`capture.sh\`, not transcribed. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\` · \`$PY_V\` · yarn.lock \`$LOCK_SHA\`. Raw log: \`${STAMP##*/}.log\`.</sub>"
 } > "$STAMP.md"
 
 printf 'capture: %s (exit %s)\n  %s\n  %s\n  %s\n' "$VERDICT" "$CODE" "$STAMP.log" "$STAMP.json" "$STAMP.md" >&2

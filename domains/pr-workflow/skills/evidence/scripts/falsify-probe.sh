@@ -156,7 +156,7 @@ JSON
     vacuous) echo "Worth a look: the mechanism is unguarded by this suite — what else depends on it?" ;;
   esac
   echo
-  echo "<sub>Produced by \`falsify-probe.sh\` at \`$HEAD_SHA\` · node \`$NODE_V\` · yarn.lock \`$LOCK_SHA\` · $DIRTY tracked changes. Logs: \`$STAMP-armA.log\`, \`$STAMP-armB.log\`.</sub>"
+  echo "<sub>Produced by \`falsify-probe.sh\` at \`$HEAD_SHA\` · node \`$NODE_V\` · yarn.lock \`$LOCK_SHA\` · $DIRTY tracked changes. Logs: \`${STAMP##*/}-armA.log\`, \`${STAMP##*/}-armB.log\`.</sub>"
 } > "$STAMP.md"
 
 printf 'falsify-probe: %s (exit %s)\n  %s\n  %s\n' "$VERDICT" "$CODE" "$STAMP.json" "$STAMP.md" >&2

@@ -133,7 +133,7 @@ JSON
   echo "divergence reachable only at runtime, or only from a caller outside this repo, will not"
   echo "appear here. Worth a look at whether the authoritative type is itself correct."
   echo
-  echo "<sub>Produced by \`tsc-substitution.sh\`; source restored after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · $TS_V. Logs: \`$STAMP-armA.log\`, \`$STAMP-armB.log\`.</sub>"
+  echo "<sub>Produced by \`tsc-substitution.sh\`; source restored after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · $TS_V. Logs: \`${STAMP##*/}-armA.log\`, \`${STAMP##*/}-armB.log\`.</sub>"
   echo
 } > "$STAMP.md"
 
