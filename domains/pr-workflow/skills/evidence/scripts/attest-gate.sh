@@ -4,7 +4,7 @@
 #
 # Everything checkable is checked before anything is asked of a model, because a
 # model asked "is this good evidence?" answers from inside the frame that produced
-# the text. These eight are greppable, so they are not a matter of judgement.
+# the text. These are greppable, so they are not a matter of judgement.
 #
 # Usage: attest-gate.sh <artifact.md> [--reference <showcase.html>]
 #
@@ -81,6 +81,17 @@ if printf '%s' "$HDR" | grep -q 'proven' && [ -n "$BODY" ]; then
   fail "9 verdict matches artifact" "header claims 'proven' while the embedded artifact reports '$BODY'"
 else
   pass "9 verdict matches artifact"
+fi
+
+# 10 — the positive counterpart to check 6. A run succeeds by putting concerns in front
+# of a reviewer, so an artifact that floats nothing has reported only what it happened to
+# measure and called that the whole picture. This is NOT satisfied by a "what would close
+# it" section, which check 6 rejects: that hands the reader the run's own unfinished work,
+# whereas this names a limit or a question the run is right to leave open.
+if hasi 'open for review|raise with a human|falsifier|worth a look|left unmeasured|not covered by this run|no verdict offered'; then
+  pass "10 floats something for review"
+else
+  fail "10 floats something for review" "no limit, open question, or falsifier named — an artifact that floats nothing implies its measurement was the whole surface"
 fi
 
 if [ -n "$REF" ] && [ -f "$REF" ]; then

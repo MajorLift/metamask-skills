@@ -9,10 +9,15 @@
 #
 # This wraps any command so the ARTIFACT is written by the tool. Nothing is retyped.
 #
-#   capture.sh --label <slug> --lane <id> --claim "<under test>" [--verdict <word>] -- <cmd...>
+#   capture.sh --label <slug> --lane <id> --claim "<under test>" [--verdict <word>]
+#              [--open "<what this run leaves open>"] -- <cmd...>
 #
 # --verdict is stated by the caller, never inferred from the exit code: a wrapped
 # tool's exit convention is its own, and guessing prints "pass" over real findings.
+#
+# --open is the same discipline pointed the other way. A run succeeds by putting
+# concerns in front of a reviewer, not by closing them, so what the wrapped tool
+# could not reach is publishable content. Omitting it is recorded, not hidden.
 #
 # Emits, under --out (default evidence-artifacts/):
 #   <label>.log    raw stdout+stderr of the command, unmodified
@@ -27,7 +32,7 @@
 #     -- python3 retention-scan.py ui/store/background-connection.ts pr.patch
 set -uo pipefail
 
-OUT_DIR="evidence-artifacts"; LABEL=""; LANE=""; CLAIM=""; MAXLOG=120; VERDICT=""
+OUT_DIR="evidence-artifacts"; LABEL=""; LANE=""; CLAIM=""; MAXLOG=120; VERDICT=""; OPEN=""
 die() { printf 'capture: %s\n' "$1" >&2; exit 3; }
 
 while [ $# -gt 0 ]; do
@@ -36,6 +41,7 @@ while [ $# -gt 0 ]; do
     --lane)  LANE="${2:-}"; shift 2 ;;
     --claim) CLAIM="${2:-}"; shift 2 ;;
     --verdict) VERDICT="${2:-}"; shift 2 ;;
+    --open)  OPEN="${2:-}"; shift 2 ;;
     --out)   OUT_DIR="${2:-}"; shift 2 ;;
     --max-log-lines) MAXLOG="${2:-}"; shift 2 ;;
     -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
@@ -78,6 +84,7 @@ cat > "$STAMP.json" <<JSON
   "claim": $(jstr "$CLAIM"),
   "command": $(jstr "$CMD_STR"),
   "verdict": "$VERDICT",
+  "open_for_review": $(jstr "$OPEN"),
   "exit": $CODE,
   "log": "$STAMP.log",
   "log_lines": $LINES,
@@ -104,6 +111,13 @@ JSON
     cat "$STAMP.log"
   fi
   echo '```'
+  echo
+  if [ -n "$OPEN" ]; then
+    echo "**Open for review** — $OPEN"
+  else
+    echo "**Open for review** — none stated. This tool answered one question; what it does"
+    echo "not cover was not recorded, which is not the same as it covering everything."
+  fi
   echo
   echo "<sub>Produced by \`capture.sh\`, not transcribed. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\` · \`$PY_V\` · yarn.lock \`$LOCK_SHA\`. Raw log: \`$STAMP.log\`.</sub>"
 } > "$STAMP.md"
