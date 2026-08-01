@@ -41,9 +41,13 @@ hasre '^\*\*Verdict:\*\*.*\*\*Claim:\*\*' \
   && pass "3 verdict line" \
   || fail "3 verdict line" "no '**Verdict:** … — **Claim:** …' — valence is not legible at a glance"
 
-hasre 'head `[0-9a-f]{7,}|sha256|node `v|yarn\.lock `' \
+# A run outside the repo's toolchain pins a different thing. A browser-memory lane
+# names "Firefox 153.0"; a repo lane names a head SHA and a lockfile hash. Both are
+# pins, and a check that only knows the second one fails every run of the first —
+# telling an author their pinned environment is unpinned.
+hasre 'head `[0-9a-f]{7,}|sha256|node `v|yarn\.lock `|[Ff]irefox [0-9]+\.[0-9]|[Cc]hrom(e|ium) [0-9]+\.|[Ss]afari [0-9]+\.|[Nn]ode v?[0-9]+\.[0-9]' \
   && pass "4 environment pinned" \
-  || fail "4 environment pinned" "no head SHA, toolchain version, or lockfile hash"
+  || fail "4 environment pinned" "no head SHA, lockfile hash, or pinned toolchain/browser version"
 
 # 5 — the one that matters. A tool-written log, a run link, or an image; not typed prose.
 if hasre '!\[|<img|data:image|actions/runs|/gist\.|evidence-artifacts/|Produced by '; then
@@ -88,7 +92,12 @@ fi
 # measure and called that the whole picture. This is NOT satisfied by a "what would close
 # it" section, which check 6 rejects: that hands the reader the run's own unfinished work,
 # whereas this names a limit or a question the run is right to leave open.
-if hasi 'open for review|raise with a human|falsifier|worth a look|left unmeasured|not covered by this run|no verdict offered'; then
+#
+# The vocabulary is a fixed list because this phase asks no model anything. That makes
+# it blind to a limit phrased outside the list — a real run stated its limit as "what it
+# does not establish" and the check called it absent. Add phrases when that happens;
+# judging whether the stated limit is substantive is the dispatched passes' job.
+if hasi 'open for review|raise with a human|falsifier|worth a look|left unmeasured|not covered by this run|no verdict offered|does not establish|what it does not|cannot attribute'; then
   pass "10 floats something for review"
 else
   fail "10 floats something for review" "no limit, open question, or falsifier named — an artifact that floats nothing implies its measurement was the whole surface"
