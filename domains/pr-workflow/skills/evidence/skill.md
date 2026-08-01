@@ -404,6 +404,11 @@ sentences the exhibit is not doing its job.
 Verdict icons: `✅` proven · `❌` failed · `ℹ️` otherwise. Never `❌` for a gap in *evidence* — that
 reads as a verdict on the author's work.
 
+The template itself, slot by slot, and how a run is assembled from it:
+**[references/output-templates.md](references/output-templates.md)** — that file is the
+generator, so a correction to how a run reads belongs there rather than in the comment it was
+noticed on.
+
 Full recipe — image re-hosting, recordings, AEP mirroring, the privacy scrub:
 **[references/evidence-publishing.md](references/evidence-publishing.md).**
 
