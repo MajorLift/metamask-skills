@@ -109,6 +109,11 @@ JSON
   echo "This counts renders of one named consumer across a defined interaction. It is not a count"
   echo "of consumers, and a larger consumer count does not imply a larger effect."
   echo
+  echo "**Open for review** — one named consumer, one interaction. Other consumers of the same"
+  echo "provider are unmeasured, and a consumer that renders once here may render freely under"
+  echo "an interaction this probe does not perform. The probe also does not check that the"
+  echo "consumer renders the same OUTPUT, only that it renders fewer times."
+  echo
   echo "<sub>Produced by \`render-count.sh\`; the defeat edit is reverted after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`. Logs: \`$STAMP-armA.log\`, \`$STAMP-armB.log\`.</sub>"
 } > "$STAMP.md"
 
