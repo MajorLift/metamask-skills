@@ -16,6 +16,11 @@ nothing else does.
 **Verdict:** <icon> <the conclusion, in words a reviewer can act on> — **Claim:** <the
 falsifiable thing under test> head `<sha>` · <YYYY-MM-DD> · <check name in words>
 
+> [!NOTE]
+> Trial run of the [MetaMask evidence skills](<link>) — feedback welcome, on the finding or
+> on whether this format is useful to a reviewer. Not a review verdict; nothing here blocks
+> the PR.
+
 <one sentence: what kind of evidence follows, and how it was arranged>
 
 <captured artifact>
@@ -31,8 +36,6 @@ falsifiable thing under test> head `<sha>` · <YYYY-MM-DD> · <check name in wor
 
 **Open for review:** <the single question this run hands to a human, about THIS change>
 
-<sub>Trial run of the <a href="...">MetaMask evidence skills</a> — feedback welcome. Not a
-review verdict; nothing here blocks the PR.</sub>
 <!-- VALIDATION_RUN_END -->
 ```
 
@@ -53,6 +56,12 @@ themselves — a table of your own restating theirs turns a measurement into you
 
 **Follows from the above.** Bullets, each traceable to a number in an exhibit. If a bullet
 needs three sentences, the exhibit is not carrying its weight.
+
+**The disclaimer sits directly under the verdict, and stays a callout.** It is the frame a
+reviewer needs *before* they read a verdict on their own PR from a source they have not seen
+before — where feedback goes, and that nothing here blocks them. Edited by the same rules as
+prose it drifts to the foot of the page in `<sub>`, where it arrives after the reaction it
+exists to shape. Check 11 tests its position, not just its presence.
 
 **Open for review.** One question, about this change. The runners' generic limits go to stderr
 and the `.json` precisely so they do not end up here three times over; read them, and write
