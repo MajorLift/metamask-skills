@@ -177,6 +177,29 @@ untested path touches funds, keys, persisted state, user-visible wrongness, or s
 planning tracker. Subject matter triggers this, not severity: the code cannot distinguish a missing
 gate from a deliberate one.
 
+### The runner, not the recipe
+
+`scripts/falsify-probe.sh` proves a test is falsifying by mutation rather than by reading, and
+**writes the artifact itself** — the operator never transcribes output:
+
+```bash
+scripts/falsify-probe.sh \
+  --test ui/hooks/perps/coalesceBackgroundRequest.test.ts \
+  --source ui/hooks/perps/coalesceBackgroundRequest.ts \
+  --line 54 --replace '  const existing = undefined as Promise<TResult> | undefined;'
+```
+
+Runs arm A, mutates one line, runs arm B, restores the source, and emits
+`evidence-artifacts/falsify-<label>.{json,md}` plus both raw logs. **The exit code is the
+verdict**, so CI can gate on it: `0` falsifying · `1` vacuous · `2` arm A already failing · `3`
+usage error.
+
+Every artifact pins `HEAD`, node version, `yarn.lock` hash, and the tracked-change count, so two
+operators on different machines produce comparable results or visibly do not.
+
+Prefer this over a hand-run test in every case. A hand-run test yields a number you then retype,
+which returns the provenance to you and reintroduces exactly the problem the probe solves.
+
 ### Canonical output shape
 
 Every validation-run output — PR comment *or* PR-body section — uses exactly this, so re-runs
