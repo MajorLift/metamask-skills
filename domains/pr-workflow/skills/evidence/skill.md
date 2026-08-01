@@ -401,6 +401,24 @@ artifact's own table and downgrades it.
 Paragraphs of explanation read as an infodump and bury the finding; if a bullet needs three
 sentences the exhibit is not doing its job.
 
+**There must be a finding.** A run ends with something the reader can agree or disagree with —
+this holds, or it does not. Running the instruments and publishing what they printed is not
+that. `📋 measured, no verdict asserted` is not a verdict, and neither is a headline that
+reports a delta: *"494 → 651 packages, 24 rows escalated"* is a measurement in a verdict's
+clothes, leaving the reader to work out whether it is good news.
+
+The tell is a verdict line you cannot restate as a sentence with a subject and a verb.
+Withholding the conclusion feels like the rigorous move under this skill's standards, but the
+numbers came from an instrument the reader does not have; the run is the only party holding the
+context to interpret them, and declining to is offloading rather than restraint. State the
+conclusion **and** its limits — floating a concern is the residue of a finding, not a
+substitute for having one.
+
+When no finding presents itself, the usual cause is a missing comparison rather than a
+genuinely inconclusive result: a number with nothing to hold it against. Find the baseline that
+turns it into a claim — a sibling artifact, the other build target, the previous release, the
+arm the change did not touch.
+
 Verdict icons: `✅` proven · `❌` failed · `ℹ️` otherwise. Never `❌` for a gap in *evidence* — that
 reads as a verdict on the author's work.
 
