@@ -247,6 +247,31 @@ A selector taking narrowed input selectors is unmoved by an unrelated write; one
 measured, not illustrative — `getWalletsWithAccounts` and `selectRampsControllerState` on
 `main`.
 
+### `tsc-substitution.sh` — lane D6 (`tsc-blindspots`)
+
+Whether a hand-written type agrees with the source it restates is a question only the compiler
+can settle; assignability is not obvious by inspection, which is the reason the lane exists.
+
+```bash
+scripts/tsc-substitution.sh --file shared/lib/transactions-controller-utils.ts \
+  --line 146 --replace '      topics?: string;' \
+  --probe-line 150 --probe '    const _probe: string[] = txReceiptLogs[0].topics;'
+```
+
+Arm A typechecks the baseline, arm B applies the substitution, and the finding is the **error
+diff**. Source is restored on exit including on interrupt.
+
+**A silent arm B is not proof of agreement.** Existing call sites often satisfy both shapes —
+indexing and `.match()` compile against `string` and `string[]` alike — so use `--probe` to
+inject a deliberately-typed sink that only the authoritative shape accepts. Without one this
+lane reports false clean.
+
+If arm A already fails, the run stops and states that nothing was established, alongside the
+count of module/export errors (TS2305/TS2307/TS2724), which usually indicate an incomplete
+install rather than a repo defect. It does not classify from that ratio — on a real run 124 of
+280 errors were install artifacts while tripping no majority rule, because other codes are
+downstream of the same cause.
+
 ### Canonical output shape
 
 Every validation-run output — PR comment *or* PR-body section — uses exactly this, so re-runs
