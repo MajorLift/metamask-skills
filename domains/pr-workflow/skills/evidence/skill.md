@@ -294,6 +294,56 @@ This is phase 0 of [`/attest`](https://github.com/MajorLift/Reprise); phases 1 a
 `/outframe ‖ /missing ‖ /press` then `/trim` to fresh instances, because those passes cannot be
 self-run — the author is positionally the wrong reader.
 
+### Runner registry — what each establishes, and what it cannot
+
+Route a claim to a runner by what the claim asserts. **Read the limit column before quoting a
+result**: every runner has a shape of claim it cannot reach, and reporting past that line is how
+a run stops being evidence.
+
+| Runner | Establishes | Cannot establish |
+|---|---|---|
+| `falsify-probe.sh` | a test fails when its mechanism is removed | that the fix is *correct* — only that the test has power |
+| `selector-recompute.sh` | recomputation counts across three input conditions | component render counts; a selector without `.recomputations()` |
+| `render-count.sh` | renders of one named consumer over one interaction | that other consumers behave the same; needs a hand-written probe |
+| `tsc-substitution.sh` | a hand-written type disagrees with its source | agreement — **a silent arm B means the probe was too weak** |
+| `retention-scan.py` | acquire/release pairing within one file | that the release site is *reachable* from the acquire |
+| `policy-audit.py` | capability delta and override scope | whether a grant is acceptable — intent is not in the files |
+| `egress-delta.py` | egress added, protections removed | whether a flow is acceptable, or what happens off-diff |
+| `capture.sh` | a verbatim artifact for any command | any verdict — the caller states it or none is claimed |
+| `attest-gate.sh` | eight mechanical publication checks | whether the claim under test was the right one to test |
+
+Exit codes are uniform: `0` the checked property holds · `1` it does not · `2` no conclusion
+available · `3` usage error. **A `2` from any runner caps the whole run at unproven** — one
+inconclusive arm is not offset by another lane passing.
+
+### Synthesising a run from several runners
+
+1. **Lead lane first.** Pick the runner whose output *is* the claim. A corroborator strengthens
+   a lead; it never substitutes for one.
+2. **Correctness gates measurement.** `selector-recompute` fails outright on an unstable value,
+   and that ordering generalises: a performance number over changed behaviour is not a
+   performance result, it is a missed regression.
+3. **A `2` is load-bearing.** Report it as its own line. Averaging it away, or quoting the lanes
+   that passed, converts "we could not tell" into "it is fine".
+4. **Security and privacy findings route privately** regardless of what the other lanes say. A
+   green performance lane does not make an egress finding publishable here.
+5. **State the residue.** Name the part of the claim no runner reached, in the artifact, rather
+   than letting the covered part imply coverage.
+
+### Known gap: conformance to a written decision
+
+No runner here checks a diff against an architectural decision record. That class is real and
+expensive — a merged PR added deeplinks accepting unsigned parameters, justified as "read-only
+screens, so unsigned routing params are safe", and was reverted after review. The justification
+misreads the model: signed links skip the warning interstitial, so an unsigned parameter inherits
+the signature's trust without being covered by it, which is exploitable regardless of whether the
+destination writes anything.
+
+Nothing in the table above would have found that. It is not a measurement, a count, or a diff
+delta — it is a rule stated in a document, violated by code that looks unremarkable. Until a
+conformance runner exists, **route ADR-governed surfaces to a human reviewer and say in the
+artifact that you did**.
+
 ### Canonical output shape
 
 Every validation-run output — PR comment *or* PR-body section — uses exactly this, so re-runs
