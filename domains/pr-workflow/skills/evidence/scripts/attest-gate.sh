@@ -103,6 +103,22 @@ else
   fail "10 floats something for review" "no limit, open question, or falsifier named — an artifact that floats nothing implies its measurement was the whole surface"
 fi
 
+# 11 — the trial-run disclaimer, and its POSITION. This is not content, it is the frame
+# the reader needs before they read a verdict on their own PR from an unfamiliar source.
+# Compressed and moved to the foot of the page — which is what happens when it is edited
+# by the same rules as prose — it arrives after the reaction it exists to shape.
+DISC="$(grep -n -i 'trial run' "$FILE" | head -1 | cut -d: -f1)"
+FIRST_EXHIBIT="$(grep -n '^```' "$FILE" | head -1 | cut -d: -f1)"
+if [ -z "$DISC" ]; then
+  fail "11 disclaimer present and early" "no trial-run disclaimer — a reviewer cannot tell what this is or where to send feedback"
+elif ! grep -qi 'trial run' "$FILE" || ! grep -q 'skills/pull/\|MetaMask/skills' "$FILE"; then
+  fail "11 disclaimer present and early" "disclaimer does not link the skills PR, so feedback has nowhere to go"
+elif [ -n "$FIRST_EXHIBIT" ] && [ "$DISC" -gt "$FIRST_EXHIBIT" ]; then
+  fail "11 disclaimer present and early" "disclaimer is at line $DISC, after the first exhibit at line $FIRST_EXHIBIT — it frames nothing from there"
+else
+  pass "11 disclaimer present and early"
+fi
+
 if [ -n "$REF" ] && [ -f "$REF" ]; then
   r=$(grep -coE '!\[|<img|data:image' "$REF"); c=$(grep -coE '!\[|<img|data:image|evidence-artifacts/|Produced by' "$FILE")
   echo
