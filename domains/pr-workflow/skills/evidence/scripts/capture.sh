@@ -82,7 +82,11 @@ NODE_V="$(node -v 2>/dev/null || echo n/a)"
 PY_V="$(python3 -V 2>&1 || echo n/a)"
 LOCK_SHA="$( { sha256sum yarn.lock 2>/dev/null || shasum -a 256 yarn.lock 2>/dev/null; } | cut -c1-16)"
 [ -n "$LOCK_SHA" ] || LOCK_SHA="n/a"
-CMD_STR="$*"
+# `$*` flattens the argument boundaries, so a wrapped `sh -c '<pipeline>'` printed as
+# `sh -c <pipeline>` runs only the first word — the exhibit shows a command that does
+# not do what the log below it records. Re-quoting keeps the printed line executable,
+# which is the whole reason it is printed rather than described.
+CMD_STR="$(python3 -c 'import shlex,sys; print(shlex.join(sys.argv[1:]))' "$@" 2>/dev/null || printf '%s' "$*")"
 
 # Run it. Never interpret the output — capture it verbatim.
 "$@" > "$STAMP.log" 2>&1
