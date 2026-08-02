@@ -412,8 +412,9 @@ it carries 31 embedded captures. Uploading costs a step and a decision about wha
 published; that cost is the price of the reader not having to trust you, and a pipeline with no
 upload step has no evidence step.
 
-**Run the measurement in CI, not locally.** `assets/evidence-run.yml` installs into the consumer
-repo and dispatches any runner at a pinned SHA. This is not about convenience: a local run's
+**Run the measurement in CI, not locally.** `assets/evidence-run.yml` lives in one repo and
+measures any other — `target_repo` is an input and the checkout is read-only, so the repo under
+review needs no workflow, no fork, and no change of any kind. This is not about convenience: a local run's
 only witness is you, so it cannot meet the requirement above, and every defect class this suite
 has shipped was a local-environment one — a helper in `/tmp`, a probe deleted after the run, an
 absolute path, a drifted toolchain, a contended host whose numbers had to be retracted. None of
