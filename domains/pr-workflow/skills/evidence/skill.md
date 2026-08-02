@@ -412,6 +412,18 @@ it carries 31 embedded captures. Uploading costs a step and a decision about wha
 published; that cost is the price of the reader not having to trust you, and a pipeline with no
 upload step has no evidence step.
 
+**Run the measurement in CI, not locally.** `assets/evidence-run.yml` installs into the consumer
+repo and dispatches any runner at a pinned SHA. This is not about convenience: a local run's
+only witness is you, so it cannot meet the requirement above, and every defect class this suite
+has shipped was a local-environment one — a helper in `/tmp`, a probe deleted after the run, an
+absolute path, a drifted toolchain, a contended host whose numbers had to be retracted. None of
+those is expressible in CI, where the workflow file is the recipe, the workspace is the repo,
+and the run URL is itself the capture.
+
+It also carries two controls worth having by default: a `baseline` input, because twice a run
+reported "no finding" when what it lacked was a comparison; and a determinism check that runs
+the head arm twice and refuses to endorse numbers that move.
+
 **Never restate an artifact's number in your own prose.** A figure that appears only in a
 sentence you typed is a figure on your word, which is the one thing this whole skill exists
 to avoid. Cite by pointing at the block; a summary table above the exhibits duplicates the
