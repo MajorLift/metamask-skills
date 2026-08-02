@@ -122,7 +122,14 @@ JSON
   echo '```console'
   echo "\$ yarn jest $PROBE"
   echo "$A_LINE"
-  [ -n "$B_LINE" ] && { echo "\$ yarn jest $PROBE   # $ARM_B"; echo "$B_LINE"; }
+  # Arm B's command has to CARRY the mutation, not name it in a trailing comment.
+  # Two identical `$` lines shown with different numbers misstate their own cause:
+  # a reader running the block twice reproduces arm A twice, and the edit that
+  # actually produced the delta never appears.
+  [ -n "$B_LINE" ] && {
+    echo "\$ sed -i '${DEFEAT_LINE}s|.*|${DEFEAT_WITH//|/\\|}|' $DEFEAT && yarn jest $PROBE"
+    echo "$B_LINE"
+  }
   echo '```'
   echo
   echo "This counts renders of one named consumer across a defined interaction. It is not a count"

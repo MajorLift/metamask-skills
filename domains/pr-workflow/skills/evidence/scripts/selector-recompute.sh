@@ -43,6 +43,13 @@ capture_provenance() {
 N=5; OUT_DIR="evidence-artifacts"; LABEL=""; MODULE=""; EXPORT=""; FIXTURE=""; SLICE="metamask"; PERTURB=""
 die() { printf 'selector-recompute: %s\n' "$1" >&2; exit 3; }
 
+# Captured before the arg loop consumes them. The exhibit used to print
+# `yarn jest <generated probe>`, which is the same string for every arm — so a
+# head/baseline pair published together showed two identical command lines
+# producing two different numbers, and running the command twice reproduces the
+# first number twice. The arm is the ref, so the ref belongs in the command.
+INVOCATION="$(basename "$0") $*"
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --module)  MODULE="${2:-}"; shift 2 ;;
@@ -184,7 +191,7 @@ JSON
   fi
   echo
   echo '```console'
-  echo "\$ yarn jest $PROBE"
+  echo "\$ git checkout --detach $HEAD_SHA && bash $INVOCATION"
   # The tool's own output, not a line this script composed. A summary a script writes
   # about its own run carries the script's word; the runner's stdout carries the run's.
   grep -E "RECOMPUTE_PROBE |^Test Suites:|^Tests: |^Time: " "$STAMP.log" | head -8
