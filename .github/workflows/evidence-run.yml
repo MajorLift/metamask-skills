@@ -236,11 +236,14 @@ jobs:
           A="evidence-artifacts/$RUNNER-head.json"
           B="evidence-artifacts/$RUNNER-repeat.json"
           if [ -f "$A" ] && [ -f "$B" ]; then
-            # `label` and `log` name the arm, and `env` carries timing — all three differ
+            # `label`, `log` and `logs` name the arm, and `env` carries timing — all differ
             # between the two runs by construction. Comparing them makes the check fire on
-            # every run, which is the same as not having it.
-            if diff <(jq -S 'del(.env, .label, .log)' "$A") \
-                    <(jq -S 'del(.env, .label, .log)' "$B") > determinism.diff; then
+            # every run, which is the same as not having it. `logs` was missing from this
+            # list, so `render-count` — the only runner that writes the plural key — failed
+            # the check on every run while reporting identical counts. A warning that is
+            # always wrong for one runner teaches the operator to publish through it.
+            if diff <(jq -S 'del(.env, .label, .log, .logs)' "$A") \
+                    <(jq -S 'del(.env, .label, .log, .logs)' "$B") > determinism.diff; then
               echo "deterministic across two runs" | tee -a "$GITHUB_STEP_SUMMARY"
             else
               echo "::warning::runner is NOT deterministic at this ref — do not publish these numbers"
