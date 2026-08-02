@@ -66,6 +66,30 @@ name: Evidence run
           had no comparison, so the baseline arm is offered here rather than left to memory.
         required: false
         type: string
+      skills_repo:
+        description: >-
+          Where to source the runners. Defaults to upstream. Overridable because a runner
+          fix and the run that needs it cannot both wait on a review: point this at a fork
+          branch, and say in the artifact that you did.
+        required: false
+        default: MetaMask/skills
+        type: string
+      skills_ref:
+        description: >-
+          Ref within skills_repo. Overrides the EVIDENCE_SKILLS_REF variable.
+        required: false
+        type: string
+      probe_path:
+        description: >-
+          Path, within skills_repo, of a probe file to copy into the target tree before the
+          runner executes. `render-count` takes a hand-written probe, and a probe that lives
+          only on the author's disk is the exact defect the run URL exists to remove.
+        required: false
+        type: string
+      probe_dest:
+        description: Where in the target tree to place probe_path. Required with probe_path.
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -122,10 +146,17 @@ jobs:
       - name: Fetch the runners at a pinned version
         uses: actions/checkout@v6
         with:
-          repository: MetaMask/skills
-          ref: ${{ vars.EVIDENCE_SKILLS_REF || 'dbc275429d92d00daf4c9138edabe93f526fc26b' }}
+          repository: ${{ inputs.skills_repo || 'MetaMask/skills' }}
+          ref: ${{ inputs.skills_ref || vars.EVIDENCE_SKILLS_REF || 'dbc275429d92d00daf4c9138edabe93f526fc26b' }}
           path: .evidence-skills
-          sparse-checkout: domains/pr-workflow/skills/evidence/scripts
+          # The security-domain analysis scripts (policy-audit.py and its siblings) are
+          # wrapped by the `capture` runner rather than being runners themselves, so they
+          # need no entry in the `runner` choice list — but they do need to be on disk.
+          # A sparse path absent from the chosen ref is silently empty, so listing it here
+          # costs nothing when it is not there.
+          sparse-checkout: |
+            domains/pr-workflow/skills/evidence/scripts
+            domains/security/skills
 
       - name: Verify the runners arrived
         env:
@@ -140,8 +171,23 @@ jobs:
             echo "::error::Set the EVIDENCE_SKILLS_REF repository variable to a commit that has it."
             exit 1
           }
-          echo "runner $RUNNER.sh sourced from skills @ ${{ vars.EVIDENCE_SKILLS_REF || 'pinned default' }}" \
+          echo "runner $RUNNER.sh sourced from ${{ inputs.skills_repo || 'MetaMask/skills' }} @ ${{ inputs.skills_ref || vars.EVIDENCE_SKILLS_REF || 'pinned default' }}" \
             >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Place the probe
+        if: inputs.probe_path != ''
+        env:
+          SRC: .evidence-skills/${{ inputs.probe_path }}
+          DEST: ${{ inputs.probe_dest }}
+        run: |
+          # Copied from the runners checkout, so the probe has a permalink of its own and
+          # the reader can see the file that produced the count rather than taking the
+          # count on the author's word.
+          [ -n "$DEST" ] || { echo "::error::probe_dest is required with probe_path"; exit 1; }
+          [ -f "$SRC" ] || { echo "::error::probe not found at $SRC on the chosen skills ref"; exit 1; }
+          mkdir -p "$(dirname "$DEST")"
+          cp "$SRC" "$DEST"
+          echo "probe $SRC -> $DEST" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run
         id: run
