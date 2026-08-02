@@ -158,6 +158,7 @@ jobs:
             domains/pr-workflow/skills/evidence/scripts
             domains/pr-workflow/skills/evidence/probes
             domains/security/skills
+            domains/stability/skills
 
       - name: Verify the runners arrived
         env:
