@@ -35,6 +35,18 @@
 #   3  usage error
 set -uo pipefail
 
+# A run's artifact has to say whether a reader can verify it. In CI the run URL is that
+# verification; locally there is none, and the artifact says so rather than leaving the
+# omission for a gate to catch later.
+capture_provenance() {
+  if [ -n "${GITHUB_RUN_ID:-}" ]; then
+    printf 'Run: %s/%s/actions/runs/%s — logs and artifacts attached there.' \
+      "${GITHUB_SERVER_URL:-https://github.com}" "${GITHUB_REPOSITORY:-}" "$GITHUB_RUN_ID"
+  else
+    printf 'Produced on a local machine: no reader-verifiable capture. Re-run through the evidence workflow before publishing.'
+  fi
+}
+
 OUT_DIR="evidence-artifacts"; LABEL=""; PROBE=""; DEFEAT=""; DEFEAT_LINE=""; DEFEAT_WITH=""
 ARM_B="memo defeated"
 die() { printf 'render-count: %s\n' "$1" >&2; exit 3; }
@@ -116,7 +128,7 @@ JSON
   echo "This counts renders of one named consumer across a defined interaction. It is not a count"
   echo "of consumers, and a larger consumer count does not imply a larger effect."
   echo
-  echo "<sub>Produced by \`render-count.sh\`; the arm-B edit is reverted after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`.</sub>"
+  echo "<sub>Produced by \`render-count.sh\`; the arm-B edit is reverted after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`. $(capture_provenance)</sub>"
 } > "$STAMP.md"
 
 printf 'render-count: %s\n  %s\n  %s\n' "$VERDICT" "$STAMP.json" "$STAMP.md" >&2

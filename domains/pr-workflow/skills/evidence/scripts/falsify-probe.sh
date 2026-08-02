@@ -34,6 +34,18 @@
 #     --label coalesce-inflight
 set -uo pipefail
 
+# A run's artifact has to say whether a reader can verify it. In CI the run URL is that
+# verification; locally there is none, and the artifact says so rather than leaving the
+# omission for a gate to catch later.
+capture_provenance() {
+  if [ -n "${GITHUB_RUN_ID:-}" ]; then
+    printf 'Run: %s/%s/actions/runs/%s — logs and artifacts attached there.' \
+      "${GITHUB_SERVER_URL:-https://github.com}" "${GITHUB_REPOSITORY:-}" "$GITHUB_RUN_ID"
+  else
+    printf 'Produced on a local machine: no reader-verifiable capture. Re-run through the evidence workflow before publishing.'
+  fi
+}
+
 RUNNER="yarn jest"
 OUT_DIR="evidence-artifacts"
 LABEL=""
@@ -148,7 +160,7 @@ JSON
   esac
   [ -n "$FAILED_NAMES" ] && { echo; echo "Failing under mutation:"; echo; printf '%s\n' "$FAILED_NAMES" | sed 's/^/- /'; }
   echo
-  echo "<sub>Produced by \`falsify-probe.sh\` at \`$HEAD_SHA\` · node \`$NODE_V\` · yarn.lock \`$LOCK_SHA\` · $DIRTY tracked changes.</sub>"
+  echo "<sub>Produced by \`falsify-probe.sh\` at \`$HEAD_SHA\` · node \`$NODE_V\` · yarn.lock \`$LOCK_SHA\` · $DIRTY tracked changes. $(capture_provenance)</sub>"
 } > "$STAMP.md"
 
 printf 'falsify-probe: %s (exit %s)\n  %s\n  %s\n' "$VERDICT" "$CODE" "$STAMP.json" "$STAMP.md" >&2

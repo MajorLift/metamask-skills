@@ -28,6 +28,18 @@
 #     --fixture test/data/mock-state.json --slice metamask --perturb pinnedAccountList
 set -uo pipefail
 
+# A run's artifact has to say whether a reader can verify it. In CI the run URL is that
+# verification; locally there is none, and the artifact says so rather than leaving the
+# omission for a gate to catch later.
+capture_provenance() {
+  if [ -n "${GITHUB_RUN_ID:-}" ]; then
+    printf 'Run: %s/%s/actions/runs/%s — logs and artifacts attached there.' \
+      "${GITHUB_SERVER_URL:-https://github.com}" "${GITHUB_REPOSITORY:-}" "$GITHUB_RUN_ID"
+  else
+    printf 'Produced on a local machine: no reader-verifiable capture. Re-run through the evidence workflow before publishing.'
+  fi
+}
+
 N=5; OUT_DIR="evidence-artifacts"; LABEL=""; MODULE=""; EXPORT=""; FIXTURE=""; SLICE="metamask"; PERTURB=""
 die() { printf 'selector-recompute: %s\n' "$1" >&2; exit 3; }
 
@@ -178,7 +190,7 @@ JSON
   grep -E "RECOMPUTE_PROBE |^Test Suites:|^Tests: |^Time: " "$STAMP.log" | head -8
   echo '```'
   echo
-  echo "<sub>Produced by \`selector-recompute.sh\` via reselect's own counter; the probe is generated, run, and kept beside this artifact. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`.</sub>"
+  echo "<sub>Produced by \`selector-recompute.sh\` via reselect's own counter; the probe is generated, run, and kept beside this artifact. head \`$HEAD_SHA\` · $DIRTY tracked changes · node \`$NODE_V\`. $(capture_provenance)</sub>"
 } > "$STAMP.md"
 
 printf 'selector-recompute: %s\n  %s\n  %s\n' "$VERDICT" "$STAMP.json" "$STAMP.md" >&2

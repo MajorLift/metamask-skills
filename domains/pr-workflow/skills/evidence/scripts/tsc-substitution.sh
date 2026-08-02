@@ -29,6 +29,18 @@
 #                       [--tsc "<command>"]
 set -uo pipefail
 
+# A run's artifact has to say whether a reader can verify it. In CI the run URL is that
+# verification; locally there is none, and the artifact says so rather than leaving the
+# omission for a gate to catch later.
+capture_provenance() {
+  if [ -n "${GITHUB_RUN_ID:-}" ]; then
+    printf 'Run: %s/%s/actions/runs/%s — logs and artifacts attached there.' \
+      "${GITHUB_SERVER_URL:-https://github.com}" "${GITHUB_REPOSITORY:-}" "$GITHUB_RUN_ID"
+  else
+    printf 'Produced on a local machine: no reader-verifiable capture. Re-run through the evidence workflow before publishing.'
+  fi
+}
+
 TSC="yarn lint:tsc"; OUT_DIR="evidence-artifacts"; LABEL=""
 FILE=""; LINE=""; REPLACE=""; PROBE_LINE=""; PROBE=""
 die() { printf 'tsc-substitution: %s\n' "$1" >&2; exit 3; }
@@ -128,7 +140,7 @@ JSON
     echo "subtracted, not disqualifying — only errors new under substitution are the finding.</sub>"
   fi
   echo
-  echo "<sub>Produced by \`tsc-substitution.sh\`; source restored after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · $TS_V.</sub>"
+  echo "<sub>Produced by \`tsc-substitution.sh\`; source restored after the run. head \`$HEAD_SHA\` · $DIRTY tracked changes · $TS_V. $(capture_provenance)</sub>"
   echo
 } > "$STAMP.md"
 
