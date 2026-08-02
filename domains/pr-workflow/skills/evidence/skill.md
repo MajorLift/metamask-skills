@@ -407,6 +407,26 @@ Paste the fenced block *beside* one of those, never instead of one. This is also
 plaintext check can never close the gap: every property of text is forgeable by whatever emits
 the text, so the gate asks for a different medium rather than for better text.
 
+**The exception — plaintext where every claim is a citation.** The rule is about where
+verification routes, not about pixels. Line-level links are externally verifiable: the reader
+clicks and sees exactly what you saw. That is the *normal* case for the audit lanes —
+`supply-chain-audit`, `lavamoat-policy-diligence`, `privacy-egress-diligence` — whose findings
+are facts about code that exists rather than results of running something. There an image would
+be worse: a screenshot of a policy diff is less checkable than a permalink to it.
+
+The bar for those lanes is comprehensive linking, not a link somewhere nearby:
+
+- every capability grant → a permalink to its **call site** in the dependency's source, at the
+  installed version, with the line;
+- every *"no call site uses this"* → the **search that establishes the absence**, re-runnable;
+- every version, advisory, or policy claim → the file and line it came from.
+
+An audit row naming a package and a capability with no link is the same defect as a bare
+console block — a claim on your word, wearing a technical register.
+
+The general form: ask what the reader must do to check a claim. *Trust the transcription* means
+the medium is wrong whatever it looks like. **Cite what exists; capture what you ran.**
+
 **Automation is what removes the capture — watch for it.** The runs built by hand, before these
 runners existed, attached images and hosted logs: eight of eleven carry a capture a reader can
 open. The runs built by the runners attached one in twelve. Nothing was neglected; the causation
