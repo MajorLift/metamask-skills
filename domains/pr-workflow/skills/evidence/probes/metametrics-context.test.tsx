@@ -1,4 +1,9 @@
-// C4 probe — MetaMetrics context value identity.
+// Probe — MetaMetrics context value identity.
+//
+// PLACEMENT: copy to `ui/contexts/__render_probe__.test.tsx` in a metamask-extension tree.
+// The imports below are relative to `ui/contexts/`, so a different destination resolves
+// nothing and the suite fails to run with "Cannot find module" — which is a failed probe,
+// not a measurement. `probe_dest` in the evidence workflow must match this path.
 //
 // The claim under test is about breadth: "all N consumers avoid unnecessary re-renders".
 // `useContext` re-renders a consumer when the value's IDENTITY changes, and that is not a
@@ -6,12 +11,15 @@
 // consumer is spared, and N distinct values means none is. Counting distinct values is
 // therefore the measurement the claim actually rests on; counting one consumer's renders
 // would only ever describe that consumer.
+//
+// Resolves against both `metametrics.js` and `metametrics.tsx`, so the same file measures a
+// base commit and a head commit that renamed it — the comparison is the point.
 import React, { useContext, useRef, useState } from 'react';
 import { act } from '@testing-library/react';
-import configureStore from '../../../../../ui/store/store';
-import { renderWithProvider } from '../../../../../test/lib/render-helpers-navigate';
-import mockState from '../../../../../test/data/mock-state.json';
-import { MetaMetricsContext, MetaMetricsProvider } from '../../../../../ui/contexts/metametrics';
+import configureStore from '../store/store';
+import { renderWithProvider } from '../../test/lib/render-helpers-navigate';
+import mockState from '../../test/data/mock-state.json';
+import { MetaMetricsContext, MetaMetricsProvider } from './metametrics';
 
 let consumerRenders = 0;
 let distinctValues = 0;
@@ -38,7 +46,7 @@ function Parent() {
   );
 }
 
-describe('C4 probe — MetaMetrics context value identity', () => {
+describe('MetaMetrics context value identity', () => {
   it('counts distinct context values across parent re-renders', () => {
     const PARENT_RENDERS = 5;
     consumerRenders = 0;
