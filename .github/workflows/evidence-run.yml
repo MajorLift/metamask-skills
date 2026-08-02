@@ -156,6 +156,7 @@ jobs:
           # costs nothing when it is not there.
           sparse-checkout: |
             domains/pr-workflow/skills/evidence/scripts
+            domains/pr-workflow/skills/evidence/probes
             domains/security/skills
 
       - name: Verify the runners arrived
