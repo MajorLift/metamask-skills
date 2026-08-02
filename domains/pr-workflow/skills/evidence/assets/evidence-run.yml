@@ -86,13 +86,33 @@ jobs:
       - name: Install
         run: yarn --immutable
 
+      # Pinned to a commit, for the same reason the measured ref must be: a branch name
+      # makes the run unrepeatable, and "which version of the runner produced this" is
+      # exactly the question a reader asks. Override per-repo with the EVIDENCE_SKILLS_REF
+      # variable; bump the default when the runners land on the skills repo's main.
       - name: Fetch the runners at a pinned version
         uses: actions/checkout@v6
         with:
           repository: MetaMask/skills
-          ref: ${{ vars.EVIDENCE_SKILLS_REF || 'main' }}
+          ref: ${{ vars.EVIDENCE_SKILLS_REF || 'dbc275429d92d00daf4c9138edabe93f526fc26b' }}
           path: .evidence-skills
           sparse-checkout: domains/pr-workflow/skills/evidence/scripts
+
+      - name: Verify the runners arrived
+        env:
+          RUNNER: ${{ inputs.runner }}
+        run: |
+          # A sparse checkout of a path that does not exist on the chosen ref succeeds and
+          # produces an empty directory, so the next step would fail with "No such file"
+          # and no indication that the REF was the problem.
+          F=".evidence-skills/domains/pr-workflow/skills/evidence/scripts/$RUNNER.sh"
+          [ -f "$F" ] || {
+            echo "::error::$RUNNER.sh not present at the pinned skills ref."
+            echo "::error::Set the EVIDENCE_SKILLS_REF repository variable to a commit that has it."
+            exit 1
+          }
+          echo "runner $RUNNER.sh sourced from skills @ ${{ vars.EVIDENCE_SKILLS_REF || 'pinned default' }}" \
+            >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run
         id: run
