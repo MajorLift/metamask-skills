@@ -1,5 +1,8 @@
-# Evidence runner — install into the consumer repo as
-# `.github/workflows/evidence-run.yml`.
+# Evidence runner — lives in ONE repo and measures any other.
+#
+# It does not need to be installed in the repo under review, and there is no reason to
+# fork that repo either: `target_repo` is an input and the job checks it out read-only.
+# Put this in whatever repo you want the runs and artifacts to belong to.
 #
 # Why this exists rather than running the measurement locally: a validation run is a
 # claim that a command produced an output, and the reader has to be able to check that
@@ -35,6 +38,13 @@ name: Evidence run
           - render-count
           - tsc-substitution
           - capture
+      target_repo:
+        description: >-
+          Repository to measure. No default on purpose: a default here is a standing
+          decision about what every unthinking dispatch touches, and this workflow's whole
+          argument is that it should be proved somewhere harmless first.
+        required: true
+        type: string
       ref:
         description: Commit SHA to measure. Pin it — a branch name makes the run unrepeatable.
         required: true
@@ -43,6 +53,13 @@ name: Evidence run
         description: Arguments passed to the runner, verbatim
         required: true
         type: string
+      needs_install:
+        description: >-
+          Install the target's dependencies. Required for the jest and tsc runners; a waste
+          of ten minutes for `capture` wrapping git or a policy audit, which read files only.
+        required: false
+        default: true
+        type: boolean
       baseline:
         description: >-
           Second SHA to measure identically. Twice now a run reported "no finding" when it
@@ -72,18 +89,21 @@ jobs:
             [ ${#r} -eq 40 ] || { echo "::error::'$r' must be the full 40-char SHA"; exit 1; }
           done
 
-      - name: Checkout at the measured ref
+      - name: Checkout the target at the measured ref
         uses: actions/checkout@v6
         with:
+          repository: ${{ inputs.target_repo }}
           ref: ${{ inputs.ref }}
           fetch-depth: 2 # the runners diff against the parent
 
       - uses: actions/setup-node@v4
+        if: inputs.needs_install
         with:
           node-version-file: .nvmrc
           cache: yarn
 
       - name: Install
+        if: inputs.needs_install
         run: yarn --immutable
 
       # Pinned to a commit, for the same reason the measured ref must be: a branch name
@@ -124,7 +144,7 @@ jobs:
           RUNNERS=.evidence-skills/domains/pr-workflow/skills/evidence/scripts
           mkdir -p evidence-artifacts
           set +e
-          eval "bash \"$RUNNERS/$RUNNER.sh\" $ARGS --label \"$RUNNER-head\" --out evidence-artifacts"
+          eval "bash \"$RUNNERS/$RUNNER.sh\" --label \"$RUNNER-head\" --out evidence-artifacts $ARGS"
           code=$?
           set -e
           echo "head_exit=$code" >> "$GITHUB_OUTPUT"
@@ -140,9 +160,9 @@ jobs:
           BASE: ${{ inputs.baseline }}
         run: |
           git checkout --detach "$BASE"
-          yarn --immutable
+          if [ "${{ inputs.needs_install }}" = "true" ]; then yarn --immutable; fi
           RUNNERS=.evidence-skills/domains/pr-workflow/skills/evidence/scripts
-          eval "bash \"$RUNNERS/$RUNNER.sh\" $ARGS --label \"$RUNNER-base\" --out evidence-artifacts"
+          eval "bash \"$RUNNERS/$RUNNER.sh\" --label \"$RUNNER-base\" --out evidence-artifacts $ARGS"
 
       - name: Determinism check
         # Contention produced numbers that were published and then retracted. Running the
@@ -156,12 +176,15 @@ jobs:
         run: |
           RUNNERS=.evidence-skills/domains/pr-workflow/skills/evidence/scripts
           git checkout --detach "$REF"
-          eval "bash \"$RUNNERS/$RUNNER.sh\" $ARGS --label \"$RUNNER-repeat\" --out evidence-artifacts" || true
+          eval "bash \"$RUNNERS/$RUNNER.sh\" --label \"$RUNNER-repeat\" --out evidence-artifacts $ARGS" || true
           A="evidence-artifacts/$RUNNER-head.json"
           B="evidence-artifacts/$RUNNER-repeat.json"
           if [ -f "$A" ] && [ -f "$B" ]; then
-            # env block differs by design (timing); compare the measurement only
-            if diff <(jq -S 'del(.env)' "$A") <(jq -S 'del(.env)' "$B") > determinism.diff; then
+            # `label` and `log` name the arm, and `env` carries timing — all three differ
+            # between the two runs by construction. Comparing them makes the check fire on
+            # every run, which is the same as not having it.
+            if diff <(jq -S 'del(.env, .label, .log)' "$A") \
+                    <(jq -S 'del(.env, .label, .log)' "$B") > determinism.diff; then
               echo "deterministic across two runs" | tee -a "$GITHUB_STEP_SUMMARY"
             else
               echo "::warning::runner is NOT deterministic at this ref — do not publish these numbers"
@@ -182,6 +205,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: evidence-${{ inputs.runner }}-${{ inputs.ref }}
+          # the artifact name carries what was measured, so a downloaded zip is
+          # self-describing rather than needing the run page to interpret
           path: |
             evidence-artifacts/**
             determinism.diff
