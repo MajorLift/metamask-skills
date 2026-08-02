@@ -407,6 +407,17 @@ Paste the fenced block *beside* one of those, never instead of one. This is also
 plaintext check can never close the gap: every property of text is forgeable by whatever emits
 the text, so the gate asks for a different medium rather than for better text.
 
+**Automation is what removes the capture — watch for it.** The runs built by hand, before these
+runners existed, attached images and hosted logs: eight of eleven carry a capture a reader can
+open. The runs built by the runners attached one in twelve. Nothing was neglected; the causation
+runs the other way. A runner emits clean stdout, clean stdout formats beautifully into a fenced
+block, and a fenced block looks like evidence. The hand-built runs had no such thing to reach
+for, so they went and got a real one.
+
+Every runner now states this in its own artifact: in CI it prints the run URL, and on a local
+machine it prints *"no reader-verifiable capture — re-run through the evidence workflow before
+publishing."* The confession is in the exhibit rather than left for a gate to catch.
+
 **If the artifact is small, nothing was attached.** The reference showcase runs to 2 MB because
 it carries 31 embedded captures. Uploading costs a step and a decision about what may be
 published; that cost is the price of the reader not having to trust you, and a pipeline with no
