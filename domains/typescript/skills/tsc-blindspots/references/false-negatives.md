@@ -115,10 +115,38 @@ meta.version.toFixed(2);                          // may be a string at runtime
 ```
 
 An `any` satisfies every annotation silently. Sources: untyped dependencies,
-`JSON.parse`, generics that default to `any`, and `as any`.
+`JSON.parse`, generics that default to `any`, `as any` — and the one that hides
+best in a typed-looking file: **dynamic methods on an ethers `Contract`**, where
+the ABI is runtime data so every call returns `any` while reading as an ordinary
+typed `await`. This is a known source in `metamask-extension`
+([#31973](https://github.com/MetaMask/metamask-extension/issues/31973)):
+`shared/lib/token-util.ts` declares it as `Promise<any>` with a disable comment,
+which is the honest form. The dangerous form is letting it infer — nothing
+annotates it, so it propagates into the module's return type unflagged.
 
 - **In review:** trace where a confidently-typed value *entered* the program. If
   it entered as `any`, its type is a wish.
+- **Also trace where an `any` *exits*.** The bullet above looks backwards from a
+  suspicious value; this looks forward from a module's public surface. Assign its
+  return to two impossible types, with a known-typed sibling as a control:
+
+  ```ts
+  const { type, hash } = await resolveEnsToIpfsContentId(args);
+  const a: number = hash;                      // compiles ⇒ `hash` is any
+  const c: symbol = hash.whateverIWant.deeply; // compiles ⇒ ditto
+  const d: number = type;                      // MUST error ⇒ probe can discriminate
+  ```
+
+  If the nonsense compiles and the control errors, `any` is escaping into every
+  caller. **The control line is not optional** — without it, a probe that reports
+  nothing is indistinguishable from a probe that cannot fail. Run it under the
+  project's `tsconfig`, not a standalone `tsc` invocation, or missing ambient
+  declarations and `resolveJsonModule` will produce errors that are the harness
+  rather than the finding.
+- **Precise signatures around an `any` source make it worse, not better.** A file
+  with a derived provider type and `hexValueIsEmpty(value: string | null | undefined)`
+  reads as a checked boundary while every value crossing it is unchecked. A
+  migration that adds those signatures is what creates the appearance.
 
 ### 8. Ambient `declare module` is an unverified assertion
 
@@ -134,8 +162,20 @@ them to the package. Getting a return type wrong here is invisible forever, and
 the declaration is **global**, so it also shadows any real types the package
 later ships.
 
-- **In review:** read the package's actual source at the installed version when a
-  `declare module` is added or changed. Prefer `@types/*` or a PR upstream.
+- **In review:** verify the declaration against the installed package at runtime —
+  faster and more decisive than reading source:
+
+  ```bash
+  node -e 'const m = require("@ensdomains/content-hash");
+    console.log(Object.keys(m), "default:", typeof m.default);
+    console.log(typeof m.decode(m.encode("ipfs-ns", "Qm…")));'
+  ```
+
+  Check three things: **the exports exist**, **each declared signature's return
+  `typeof` matches**, and **whether `export default` is legitimate** — a CJS module
+  with `typeof m.default === 'undefined'` still warrants a default declaration *if*
+  `esModuleInterop` is on, and is a defect if it is not. Prefer `@types/*` or an
+  upstream PR over hand-writing.
 
 ### 9. External data is asserted, not validated
 

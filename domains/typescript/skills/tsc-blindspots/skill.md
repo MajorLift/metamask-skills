@@ -86,6 +86,18 @@ gh pr diff <pr> | grep -nE '^\+.*(type [A-Z]|interface [A-Z]|: (Record<|string|n
 
 List them. Each one is a claim you are about to test.
 
+**First, check each converted module is still referenced:**
+
+```bash
+grep -rn "moduleName" --include=*.ts --include=*.js . | grep -v node_modules | grep -v '\.test\.'
+```
+
+If the only hits are the module's own definition and its test, the file is dead —
+every type on it is unfalsifiable, because nothing constrains it and no divergence
+can ever surface. This is the highest value-per-second check in a migration, and
+it reorders the work: a dead module's conversion is a deletion candidate, not a
+typing exercise.
+
 ### Step 2: Find the authoritative source for each
 
 Work down this list — the first hit wins. In the worked example 9 of the 12
