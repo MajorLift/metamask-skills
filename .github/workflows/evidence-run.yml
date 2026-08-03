@@ -201,12 +201,30 @@ jobs:
           RUNNERS=.evidence-skills/domains/pr-workflow/skills/evidence/scripts
           mkdir -p evidence-artifacts
           set +e
-          eval "bash \"$RUNNERS/$RUNNER.sh\" --label \"$RUNNER-head\" --out evidence-artifacts $ARGS"
+          eval "bash \"$RUNNERS/$RUNNER.sh\" --label \"$RUNNER-head\" --out evidence-artifacts $ARGS" \
+            2> >(tee runner-stderr.txt >&2)
           code=$?
           set -e
           echo "head_exit=$code" >> "$GITHUB_OUTPUT"
           echo "runner exited $code — the exit code is the verdict, not a build failure" \
             >> "$GITHUB_STEP_SUMMARY"
+          # A usage error (exit 3) writes no artifact, so the upload step's
+          # `if-no-files-found: error` was the only thing that spoke — a bare red X on a
+          # run whose actual message ("test not found: <path>") was three screens up in a
+          # log. The reason belongs where the artifacts are, so the failure is legible
+          # from the run page rather than only from the raw log.
+          if [ -z "$(ls -A evidence-artifacts 2>/dev/null)" ]; then
+            {
+              echo "### Runner produced no artifact (exit $code)"
+              echo
+              echo 'Nothing was measured. The runner exited before writing anything —'
+              echo 'a usage or environment error, not a finding.'
+              echo
+              echo '```'
+              tail -20 runner-stderr.txt 2>/dev/null || echo '(no stderr captured)'
+              echo '```'
+            } | tee evidence-artifacts/no-artifact.md >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Baseline arm
         if: inputs.baseline != ''
