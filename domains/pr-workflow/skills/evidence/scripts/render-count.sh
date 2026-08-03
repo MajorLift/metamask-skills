@@ -97,7 +97,9 @@ if [ -n "$DEFEAT" ] && [ -n "$DEFEAT_LINE" ]; then
   BACKUP="$(mktemp)"; cp "$DEFEAT" "$BACKUP"
   restore() { cp "$BACKUP" "$DEFEAT"; rm -f "$BACKUP"; }
   trap restore EXIT INT TERM
-  awk -v n="$DEFEAT_LINE" -v r="$DEFEAT_WITH" 'NR==n{print r; next}{print}' "$DEFEAT" > "$DEFEAT.tmp" && mv "$DEFEAT.tmp" "$DEFEAT"
+  # Through the environment, not `awk -v`: a `-v` assignment is escape-processed, so a
+  # replacement containing a backslash reaches the file altered. See falsify-probe.sh.
+  DEFEAT_LINE_TEXT="$DEFEAT_WITH" awk -v n="$DEFEAT_LINE" 'NR==n{print ENVIRON["DEFEAT_LINE_TEXT"]; next}{print}' "$DEFEAT" > "$DEFEAT.tmp" && mv "$DEFEAT.tmp" "$DEFEAT"
   yarn jest "$PROBE" > "$STAMP-armB.log" 2>&1
   B_LINE="$(counts_from "$STAMP-armB.log")"
   B="$(consumer_of "$B_LINE")"

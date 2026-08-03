@@ -105,9 +105,21 @@ if [ "$ARM_A" != "passed" ]; then
   VERDICT="baseline-already-failing"; CODE=2; ARM_B="not-run"
   : > "$STAMP-armB.log"
 else
-  # Mutate exactly one line. `.bak` form keeps this portable across GNU/BSD sed.
-  awk -v n="$LINE" -v r="$REPLACE" 'NR==n{print r; next}{print}' "$SOURCE" > "$SOURCE.tmp" \
-    && mv "$SOURCE.tmp" "$SOURCE" || die "mutation failed"
+  # Mutate exactly one line. The replacement travels through the environment, not
+  # through `awk -v`: awk runs escape processing on a `-v` assignment, so `[\s\S]`
+  # arrived as `[sS]` and the mutation written to the file was not the mutation asked
+  # for — it narrowed the regex it was meant to widen, failed a different test, and the
+  # runner reported `falsifying` for a mechanism it never touched. `ENVIRON` does no
+  # such processing.
+  MUTANT_LINE="$REPLACE" awk -v n="$LINE" 'NR==n{print ENVIRON["MUTANT_LINE"]; next}{print}' \
+    "$SOURCE" > "$SOURCE.tmp" && mv "$SOURCE.tmp" "$SOURCE" || die "mutation failed"
+  # What the artifact reports as the mutation is read back off disk, never taken from the
+  # argument. The two differed once and nothing in the output said so.
+  APPLIED_LINE="$(sed -n "${LINE}p" "$SOURCE")"
+  if [ "$APPLIED_LINE" != "$REPLACE" ]; then
+    printf 'falsify-probe: the line written differs from --replace\n  asked:   %s\n  written: %s\n' \
+      "$REPLACE" "$APPLIED_LINE" >&2
+  fi
   ARM_B="$(run_arm "$STAMP-armB.log")"
   restore; trap - EXIT INT TERM
   A_TOTAL="$(total_tests "$STAMP-armA.log")"; A_TOTAL="${A_TOTAL:-0}"
@@ -137,7 +149,8 @@ cat > "$STAMP.json" <<JSON
   "test": "$TEST",
   "mutation": { "source": "$SOURCE", "line": $LINE,
                 "from": $(printf '%s' "$ORIGINAL_LINE" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))'),
-                "to": $(printf '%s' "$REPLACE" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))') },
+                "to": $(printf '%s' "${APPLIED_LINE-$REPLACE}" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))'),
+                "to_requested": $(printf '%s' "$REPLACE" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))') },
   "armA": { "result": "$ARM_A", "summary": "$A_SUM", "log": "$STAMP-armA.log" },
   "armB": { "result": "$ARM_B", "summary": "$B_SUM", "log": "$STAMP-armB.log" },
   "env": { "head": "$HEAD_SHA", "tracked_changes": $DIRTY, "node": "$NODE_V", "yarn_lock_sha256_16": "$LOCK_SHA" }
