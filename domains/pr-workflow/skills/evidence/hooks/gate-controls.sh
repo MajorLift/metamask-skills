@@ -43,7 +43,57 @@ check() { # name expected command
   else printf '  FAIL  %-34s exit=%s want=%s\n' "$name" "$got" "$want"; fails=$((fails+1)); fi
 }
 
+# ── wiring ───────────────────────────────────────────────────────────────────────
+# The arms below prove the SCRIPT works. They say nothing about whether anything calls
+# it, and those are different questions: a hook that is not wired, or wired to a path
+# that no longer exists, is indistinguishable from a hook with nothing to block. One
+# session ran to completion with every PreToolUse hook inert — 306 certification markers
+# written, none of them enforcing anything — because nobody asked this question.
+wiring() {
+  local found=0
+  # $HOME is not necessarily the login home — an account-switching setup points it at a
+  # per-account directory, which is exactly the case this was first run in. Enumerating
+  # from $HOME alone found one config, reported it as "the" wiring, and never looked at
+  # the other. Derive the roots instead, and de-duplicate by realpath so a symlinked
+  # config is not counted twice or missed once.
+  local roots=() seen=() r
+  for r in "$HOME" "$(getent passwd "$(id -un)" | cut -d: -f6)" /home/*/ ; do
+    [ -d "$r" ] || continue
+    roots+=("$r/.claude/settings.json")
+    for a in "$r"/.claude-accts/*/.claude/settings.json; do [ -f "$a" ] && roots+=("$a"); done
+  done
+  for cfg in "${roots[@]}"; do
+    [ -f "$cfg" ] || continue
+    local rp; rp=$(readlink -f "$cfg")
+    case " ${seen[*]} " in *" $rp "*) continue ;; esac
+    seen+=("$rp")
+    local cmd
+    cmd=$(python3 -c '
+import json,sys
+try: d=json.load(open(sys.argv[1]))
+except Exception: sys.exit(0)
+out=[]
+def w(o):
+    if isinstance(o,dict):
+        for k,v in o.items():
+            if k=="command" and isinstance(v,str) and "pr-evidence-gate" in v: out.append(v)
+            else: w(v)
+    elif isinstance(o,list):
+        [w(x) for x in o]
+w(d.get("hooks",{}))
+print(out[0] if out else "")' "$cfg")
+    [ -n "$cmd" ] || continue
+    found=1
+    local path; path=$(printf '%s' "$cmd" | grep -oE '[^ "]*pr-evidence-gate\.py')
+    path="${path/\$HOME/$HOME}"
+    if [ -f "$path" ]; then printf '  ok    wired: %s\n' "${cfg/#$HOME/~}"
+    else printf '  FAIL  wired to a missing file: %s → %s\n' "${cfg/#$HOME/~}" "$path"; fails=$((fails+1)); fi
+  done
+  [ "$found" = 1 ] || { printf '  FAIL  no settings file registers the gate as a PreToolUse hook\n'; fails=$((fails+1)); }
+}
+
 echo "gate-controls: $HOOK"
+wiring
 check "positive: gh api body write"   2 "gh api repos/o/r/issues/comments/1 -X PATCH -F body=@$tmp/bad.md"
 check "positive: gh pr comment"       2 "gh pr comment 1 --repo o/r --body-file $tmp/bad.md"
 check "positive: finding via comment" 2 "gh issue comment 1 --repo o/r --body-file $tmp/finding.md"
@@ -52,5 +102,12 @@ check "negative: gh read, no body"    0 "gh pr view 1 --repo o/r"
 check "negative: a reply is a reply"  0 "gh issue comment 1 --repo o/r --body-file $tmp/reply.md"
 
 echo
-[ "$fails" -eq 0 ] && { echo "gate-controls: all arms behave"; exit 0; }
+if [ "$fails" -eq 0 ]; then
+  echo "gate-controls: all arms behave, and the gate is wired"
+  echo
+  echo "Wiring is not liveness. This proves a settings file names an existing file; it"
+  echo "cannot prove the running session loaded it. For that, run a command the gate must"
+  echo "block and confirm it is blocked — in a session, not here."
+  exit 0
+fi
 echo "gate-controls: $fails arm(s) wrong — the gate is not doing what it claims"; exit 1
