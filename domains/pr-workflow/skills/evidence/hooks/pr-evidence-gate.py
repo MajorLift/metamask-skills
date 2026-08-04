@@ -67,6 +67,8 @@ def main():
         _out_allow()  # can't read it -> don't block; nothing to scan
 
     violations = _scan(body)
+    if re.search(r"\bgh\s+issue\s+comment\b", cmd):
+        violations += _scan_enrichment_via_comment(body)
     violations += _run_attest_gate(body, cmd)
     if not violations:
         _out_allow()
@@ -95,6 +97,7 @@ def main():
 
 
 NEEDS = {
+    "enrichment": "a BODY EDIT instead (`gh issue edit --body-file`) — this reads like a resolved finding, not a reply",
     "attest-gate": "the check named above to pass — run scripts/attest-gate.sh yourself to iterate",
     "gate-missing": "attest-gate.sh on disk; refusing to publish a body nothing verified",
     "gate-error": "attest-gate.sh to run successfully; refusing to publish unverified",
@@ -300,7 +303,27 @@ def _find_gate():
     return ""
 
 
+# Only evidence artifacts are held to the evidence contract. An ordinary reply is not a
+# failed validation run, and running the gate over every published body blocks every normal
+# comment on checks 1-4 — caught by the negative arm of gate-controls.sh before this was
+# wired, which is the entire reason that arm exists. A gate that blocks everything is as
+# broken as one that blocks nothing, and only the negative control tells them apart.
+ARTIFACT_MARKERS = (
+    "VALIDATION_RUN_START",
+    "LAVAMOAT_DILIGENCE_START",
+    "## 🧪 Validation Run",
+)
+
+
+def _is_evidence_artifact(body):
+    if any(m in body for m in ARTIFACT_MARKERS):
+        return True
+    return bool(re.search(r"^\*\*Verdict:\*\*", body, re.M))
+
+
 def _run_attest_gate(body, cmd):
+    if not _is_evidence_artifact(body):
+        return []
     gate = _find_gate()
     if not gate:
         # Fails CLOSED. An enforcement point that waves things through when it cannot
@@ -329,6 +352,37 @@ def _run_attest_gate(body, cmd):
             detail = out[i + 1].strip() if i + 1 < len(out) else ""
             fails.append(_gv("attest-gate", ln.strip()[6:].strip(), detail))
     return fails or [_gv("attest-gate", f"exit {proc.returncode}", proc.stdout[-200:])]
+
+
+REPLY_TEMPLATE_OPENER = re.compile(
+    r"(?i)^\s*(?:addressed|resolved|reverted)\s*:\s*\S"
+)
+
+
+def _scan_enrichment_via_comment(body):
+    """`gh issue comment` posting a standalone finding — should be a body edit.
+
+    Structural signal, not a vocabulary one: the real instance this is modeled
+    on (planning#7508) used none of VERDICT's literal words ("ground-truthed",
+    "rules out", "de-risks" — not "confirmed"/"proven"/etc), so reusing that
+    regex as the discriminator missed it entirely on the first attempt (caught
+    by testing against the real text, not by reasoning about it). What actually
+    distinguishes a standalone report from a reply, regardless of vocabulary:
+    several paragraphs, at least one cited link, and no reply-template opener.
+    A properly-templated reply (Addressed:/Resolved:/Reverted: <fact>.) is
+    excused unconditionally — that template is itself the correct convention
+    for a comment (exogram-core: ghostwrite-review-reply-register), so
+    following it is the signal of doing this right, not a loophole.
+    """
+    if REPLY_TEMPLATE_OPENER.search(body.strip()):
+        return []
+    paras = [p.strip() for p in re.split(r"\n\s*\n", body) if p.strip()]
+    if len(paras) < 3:
+        return []  # short reply, even with a link, isn't a standalone report
+    if not re.search(r"https?://\S+", body):
+        return []  # no cited evidence — not the report shape either
+    snip = re.sub(r"\s+", " ", paras[0])[:120]
+    return [{"token": "standalone finding", "snippet": snip, "kind": "enrichment"}]
 
 
 def _scan(body):
