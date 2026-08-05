@@ -63,8 +63,38 @@ def main():
         _out_allow()
 
     body = _extract_body(cmd)
+    # An unexpanded shell construct is not a body. `--body "$(cat f)"` extracts the literal
+    # characters `$(cat f)`, which scans clean and publishes whatever the shell substitutes
+    # later — the gate would be inspecting a string the reader never sees.
+    #
+    # Look at the ARGUMENT, not the body text. A first attempt scanned the body for `$` and
+    # backticks and rejected every evidence comment ever written, because markdown inline
+    # code is backticks and these artifacts are full of them. The shell metacharacters that
+    # matter are in the command; the body is just prose.
+    if _body_arg_is_unresolvable(cmd):
+        body = ""
     if not body:
-        _out_allow()  # can't read it -> don't block; nothing to scan
+        # FAIL CLOSED. The previous reasoning here was "can't read it -> nothing to scan",
+        # which inverts the situation: by this point the command has already been identified
+        # as an outward-facing write, so an unreadable body is not an absent risk, it is an
+        # unverifiable one.
+        #
+        # This was not theoretical. The extraction is textual, so a path assembled from a
+        # shell variable — `--body-file $S/comment.md` — or a body spliced in with
+        # `--body "$(cat f)"` yields nothing, and every such publish sailed through while
+        # the gate reported itself healthy. An entire session of publishes went ungated this
+        # way, including one the gate blocks when handed the same body by literal path.
+        _block(
+            "EVIDENCE GATE (PreToolUse) — blocked an outward-facing write whose body "
+            "could not be read.\n\n"
+            "The body path could not be resolved from the command. This hook reads the "
+            "command as text and cannot expand shell variables, command substitution, or "
+            "heredocs, so a body assembled that way is unverifiable rather than safe.\n\n"
+            "Pass a literal path:\n"
+            "    gh pr comment <n> --repo <owner/repo> --body-file /abs/path/to/comment.md\n\n"
+            "If the body genuinely has no file, write it to one first. The gate has to see "
+            "what you are about to publish.\n"
+        )
 
     violations = _scan(body)
     if re.search(r"\bgh\s+issue\s+comment\b", cmd):
@@ -383,6 +413,19 @@ def _scan_enrichment_via_comment(body):
         return []  # no cited evidence — not the report shape either
     snip = re.sub(r"\s+", " ", paras[0])[:120]
     return [{"token": "standalone finding", "snippet": snip, "kind": "enrichment"}]
+
+
+# The text following --body/--body-file, up to the next argument. If it carries a variable,
+# a command substitution, or a backtick, this hook cannot know what will actually be sent.
+BODY_ARG = re.compile(r"(?:--body-file|--body|-F\s+body|--field\s+body|--raw-field\s+body)[=\s]+(\S+)")
+
+
+def _body_arg_is_unresolvable(cmd):
+    m = BODY_ARG.search(cmd)
+    if not m:
+        return False
+    arg = m.group(1)
+    return bool(re.search(r"\$|`", arg))
 
 
 def _scan(body):

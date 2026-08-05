@@ -101,6 +101,13 @@ check "negative: unrelated command"   0 "ls -la"
 check "negative: gh read, no body"    0 "gh pr view 1 --repo o/r"
 check "negative: a reply is a reply"  0 "gh issue comment 1 --repo o/r --body-file $tmp/reply.md"
 
+# The gate reads the command as text, so a body it cannot resolve is a body it cannot
+# check. These three are how an entire session of publishes went ungated while every
+# other arm above was green: the path was assembled from a shell variable each time.
+check "positive: body path via \$VAR"     2 'gh pr comment 1 --repo o/r --body-file $D/c.md'
+check "positive: body via \$(cat ...)"    2 'gh pr comment 1 --repo o/r --body "$(cat c.md)"'
+check "positive: gh api body via \$VAR"   2 'gh api repos/o/r/issues/1/comments -F body=@$D/c.md' 
+
 echo
 if [ "$fails" -eq 0 ]; then
   echo "gate-controls: all arms behave, and the gate is wired"
