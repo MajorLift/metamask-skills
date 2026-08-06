@@ -135,9 +135,10 @@ NEEDS = {
     "observation": "an OBSERVATION artifact (screenshot/recording/log/JSON/permalink) — "
                    "a /blob/ code link witnesses code, not runtime behavior",
     "deferral": "a co-located TRACKER (#issue, issues/pull URL, 'triage', 'tracked in')",
-    "ci-restatement": "removal — a validation surface carries zero CI references. "
-                      "The Checks tab already shows them; cite CI only as the revert "
-                      "lane's outcome, never as 'green at head'",
+    "ci-restatement": "removal of the CLAIM, not of the link — 'green at head' hands the "
+                      "reviewer their own Checks tab back. Citing a specific run and job "
+                      "whose log holds the figure you are reporting is evidence and is "
+                      "fine; asserting a status the Checks tab already shows is not",
     "inflated-verdict": "a downgraded verdict — 'live-proven' co-located with "
                         "'not exercised' is inflated; borrowed evidence never "
                         "upgrades an uncaptured lane",
@@ -235,10 +236,22 @@ TRACKER = re.compile(
     r"(?i)(?:#\d+|https?://\S*(?:issues|pull)/\d+|\btriage\b|follow-?up|tracked\s+in)"
 )
 # ── item 11: CI restatement — unconditional in validation scope ────────────
+# Restating a status is not the same as citing a measurement, and the rule is about the
+# first. "Tests are green at head <sha>" hands the reviewer their own Checks tab back and
+# carries no information. A link to a specific run and job whose log holds the figure
+# being reported carries the whole measurement, and is what evidence-run.yml exists to
+# produce — "move the measurement to CI, where the run URL is the capture".
+#
+# Matching a bare `actions/runs/N` conflated the two, so the package forbade its own
+# flagship output: five of the six branches below describe a CLAIM about CI, and one
+# described a URL. A run link is now a violation only when it carries restatement
+# language with it.
 CI_RESTATEMENT = re.compile(
-    r"(?i)(?:actions/runs/\d+|\bchecks?\s+tab\b|\bgreen\s+(?:at\s+head|in\s+)"
+    r"(?i)(?:\bchecks?\s+tab\b|\bgreen\s+(?:at\s+head|in\s+)"
     r"|\ball\s+(?:tests|checks|jobs)\s+(?:pass\w*|green)\b|\bCI\s+(?:is\s+)?green\b"
-    r"|\b\d+\s+pass(?:ing|ed)?\s*/\s*\d+\s+fail\w*)"
+    r"|\b\d+\s+pass(?:ing|ed)?\s*/\s*\d+\s+fail\w*"
+    r"|actions/runs/\d+[^.\n]{0,80}?\b(?:green|passing|all\s+checks|succeeded)\b"
+    r"|\b(?:green|passing|all\s+checks)\b[^.\n]{0,80}?actions/runs/\d+)"
 )
 # ── item 11: inflated verdict — proof language beside a non-exercise ───────
 NOT_EXERCISED = re.compile(
