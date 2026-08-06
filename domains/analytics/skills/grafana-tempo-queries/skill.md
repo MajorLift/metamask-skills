@@ -10,17 +10,33 @@ Tempo holds **backend** spans. Client spans from the extension and mobile go to 
 
 ## Setup
 
-Everything goes through Grafana's datasource proxy, so a Grafana session is the only credential needed. Keep the host, datasource uid, org id, and session in your environment — this repository is public, so never commit them.
+Everything goes through Grafana's datasource proxy. Authenticate with a service account token. Keep the host, datasource uid, org id, and token in your environment — this repository is public, so never commit them.
 
 ```bash
 # Set these once per shell, from your own Grafana instance:
 #   GRAFANA_HOST   e.g. https://grafana.<your-org-domain>
 #   TEMPO_UID      the Tempo datasource uid (see discovery below)
 #   GRAFANA_ORG    the numeric org id the datasource belongs to
-#   GRAFANA_SESSION  value of the grafana_session cookie from an authenticated browser
+#   GRAFANA_TOKEN  a service account token, Viewer role, scoped to the Tempo datasource
 BASE="$GRAFANA_HOST/api/datasources/proxy/uid/$TEMPO_UID"
+AUTH=(-H "Authorization: Bearer $GRAFANA_TOKEN" -H "X-Grafana-Org-Id: $GRAFANA_ORG")
+```
+
+Create the token under Administration, Service accounts. A Viewer-role account is
+sufficient for every query in this skill, and the token is revocable on its own without
+disturbing anything else you have open.
+
+If your Grafana disallows service accounts and there is genuinely no token path, a browser
+`grafana_session` cookie works in the same header slot:
+
+```bash
 AUTH=(-H "Cookie: grafana_session=$GRAFANA_SESSION" -H "X-Grafana-Org-Id: $GRAFANA_ORG")
 ```
+
+Reach for that only after confirming a token cannot be issued. A session cookie carries
+your whole Grafana authority rather than one datasource's read access, expires on a
+schedule you do not control, and cannot be revoked without ending your own session. It is
+also indistinguishable from you in an audit log.
 
 Discover the datasource uid rather than guessing it:
 

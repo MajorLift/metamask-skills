@@ -95,6 +95,6 @@ The parent identity, not the picture, is what determines nesting. Take the backe
 ## Traps
 
 - **Time windows differ per store.** Tempo retention is typically much shorter than Sentry's, so an older trace legitimately exists in one and not the other. Confirm the window before concluding a half is missing.
-- **Verify credentials on both sides first.** An expired Grafana session and an out-of-scope Sentry token both present as empty results, which reads as a real finding about instrumentation.
+- **Verify credentials on both sides first.** A Grafana token without datasource scope and an out-of-scope Sentry token both present as empty results, which read as "no data" rather than as "not allowed". Confirm each side returns something before concluding a half is missing.
 - **A relative time window on a shared link expires.** Pin absolute ranges when the link needs to outlive the incident.
 - **One sampling decision can be shared across a long-lived trace id.** If a client reuses a trace id across many operations, the proportion of spans marked sampled will not match the nominal client rate; do not read that ratio as an effective sample rate.
