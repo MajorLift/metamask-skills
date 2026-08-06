@@ -71,12 +71,20 @@ rm -f shared/lib/trace.probe7523.test.ts \
 echo
 echo "### tracked files modified at exit (expect 0): $(git status --porcelain | grep -vc '^??')"
 
-# The run page is the frame a reader is most likely to be shown, so the finding is
-# rendered THERE rather than left inside a downloadable artifact. A capture of a page
-# that says only "Success" is a provenance frame, not evidence: it proves the run
-# happened and discloses nothing it measured.
-if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-  HEAD_SHA="$(git rev-parse --short HEAD)" python3 - "$GITHUB_STEP_SUMMARY" <<'PYEOF'
+# A capture of a page that says only "Success" is a provenance frame, not evidence: it
+# proves the run happened and discloses nothing it measured. So the finding is rendered
+# as a TABLE, into a file of its own.
+#
+# It goes to evidence-artifacts/ rather than only to $GITHUB_STEP_SUMMARY because a
+# job summary is part of the logs UI, which a fork gates behind sign-in — a signed-out
+# reader sees the checkmark and none of the summary. A committed .md renders publicly
+# on any GitHub blob view, so the table survives as something a reader can be shown.
+# The workflow's own publish step cats evidence-artifacts/*.md into the job summary,
+# so writing the file gets the summary placement for free.
+SUMMARY_OUT="${GITHUB_STEP_SUMMARY:-/dev/null}"
+[ -d evidence-artifacts ] && SUMMARY_OUT="evidence-artifacts/conc-7523-summary.md"
+if [ "$SUMMARY_OUT" != /dev/null ]; then
+  HEAD_SHA="$(git rev-parse --short HEAD)" python3 - "$SUMMARY_OUT" <<'PYEOF'
 import os, re, sys
 
 def read(p):
