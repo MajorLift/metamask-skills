@@ -70,3 +70,81 @@ rm -f shared/lib/trace.probe7523.test.ts \
       app/scripts/lib/sentry-trace-propagation.probe7523.test.ts
 echo
 echo "### tracked files modified at exit (expect 0): $(git status --porcelain | grep -vc '^??')"
+
+# The run page is the frame a reader is most likely to be shown, so the finding is
+# rendered THERE rather than left inside a downloadable artifact. A capture of a page
+# that says only "Success" is a provenance frame, not evidence: it proves the run
+# happened and discloses nothing it measured.
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+  HEAD_SHA="$(git rev-parse --short HEAD)" python3 - "$GITHUB_STEP_SUMMARY" <<'PYEOF'
+import os, re, sys
+
+def read(p):
+    try:
+        return open(p, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return ""
+
+armA, armB, probe = read("/tmp/armA.log"), read("/tmp/armB.log"), read("/tmp/probe.log")
+
+def tests_line(t):
+    m = re.search(r"^Tests:.*$", t, re.M)
+    return m.group(0).replace("Tests:", "").strip() if m else "not captured"
+
+def parse_probe(label):
+    m = re.search(rf"PROBE {re.escape(label)} \|(.*)$", probe, re.M)
+    if not m:
+        return {}
+    return dict(kv.split("=", 1) for kv in
+                (p.strip() for p in m.group(1).split("|")) if "=" in kv)
+
+seq, inter, three = parse_probe("sequential"), parse_probe("interleaved"), parse_probe("interleaved-3 (C vs B)")
+
+def corr(block):
+    # The probe lines arrive indented inside jest's console output, so the block
+    # terminator must tolerate leading whitespace. Without `\s*` the first block
+    # ran to end-of-file and inherited the SECOND block's values — a well-formed
+    # table reporting the exact opposite of the measurement.
+    m = re.search(rf"PROBE {block}\n(.*?)(?=\n\s*PROBE |\Z)", probe, re.S)
+    if not m:
+        return {}
+    return {k: v for k, v in re.findall(r"matches(\w+)=(\w+)", m.group(1))}
+
+ci, cc = corr("INTERLEAVED"), corr(r"CONTROL \(B resolved first\)")
+fails = re.findall(r"● (.+?)\n", armB)
+
+out = [
+    f"## Ordering guarantees — `metamask-extension#45249` @ `{os.environ.get('HEAD_SHA','?')}`",
+    "",
+    "### The two arms",
+    "",
+    "| arm | jest result |",
+    "| --- | --- |",
+    f"| A — three tests `it.skip`, as shipped | {tests_line(armA)} |",
+    f"| B — same bodies, `.skip` removed | {tests_line(armB)} |",
+    "",
+    "### Does the observable discriminate interleaving?",
+    "",
+    "| observable | sequential | interleaved | discriminates |",
+    "| --- | --- | --- | --- |",
+    f"| 2nd span's `parent_span_id` | `{seq.get('parent_span_id(second)','?')}` "
+    f"| `{inter.get('parent_span_id(second)','?')}` "
+    f"| **yes** — and it equals the pending span's own id (`parentIsFirst={inter.get('parentIsFirst','?')}`) |",
+    f"| `traceId(2nd) == traceId(1st)` | `{seq.get('traceIdsEqual','?')}` "
+    f"| `{inter.get('traceIdsEqual','?')}` "
+    "| **NO** — equal either way, so this assertion cannot witness concurrency |",
+    f"| request-id correlates with own trace (`matchesA`) | `{cc.get('A','?')}` "
+    f"| `{ci.get('A','?')}` | **yes** |",
+    f"| request-id correlates with the *other* trace (`matchesB`) | `{cc.get('B','?')}` "
+    f"| `{ci.get('B','?')}` | **yes** — misattribution, not loss |",
+    "",
+    f"Third concurrent call parents under **B**, not A "
+    f"(`parentIsFirst={three.get('parentIsFirst','?')}` against B) — LIFO top-of-stack.",
+    "",
+    "### Arm B failures (all at the intended assertion)",
+    "",
+]
+out += [f"- {f}" for f in fails] or ["- none captured"]
+open(sys.argv[1], "a", encoding="utf-8").write("\n".join(out) + "\n")
+PYEOF
+fi
