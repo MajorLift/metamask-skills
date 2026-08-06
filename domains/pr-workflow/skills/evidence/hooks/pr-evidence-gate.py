@@ -358,10 +358,18 @@ ARTIFACT_MARKERS = (
 _VERDICT_LEAD = re.compile(r"^\s*\*\*\s*Verdict\b[^*\n]*\*\*", re.M | re.I)
 
 
+_FENCE = re.compile(r"^```.*?^```", re.M | re.S)
+
+
 def _is_evidence_artifact(body):
     if any(m in body for m in ARTIFACT_MARKERS):
         return True
-    return bool(_VERDICT_LEAD.search(body))
+    # A verdict line inside a fenced block is an example of one, not one. Writing about
+    # this gate — a PR that quotes `**Verdict:** proven` to show what triggers it — was
+    # otherwise classified as a validation run and asked for the whole envelope. The
+    # trigger has to be able to tell a claim from a quotation of a claim, or documenting
+    # the rule becomes a violation of it.
+    return bool(_VERDICT_LEAD.search(_FENCE.sub("", body)))
 
 
 def _run_attest_gate(body, cmd):
