@@ -480,6 +480,81 @@ def _add(violations, kind, token, unit):
     })
 
 
+# ── artifact credibility ───────────────────────────────────────────────────
+# Matching a URL shape only proves someone typed a URL, and the same generator
+# writes the claim and the string that satisfies the check — so presence alone
+# carries no information. An artifact counts only if the author could not have
+# authored its contents: a namespace where the bytes are written by CI, by the
+# upload endpoint, or by an observability backend; or a local path that is
+# actually on disk. Presence stays necessary and stops being sufficient.
+ARTIFACT_HOST_ALLOWLIST = (
+    "github.com/",                      # narrowed by ARTIFACT_PATH_ALLOWLIST below
+    "user-images.githubusercontent.com/",
+    "gist.github.com/",
+    "sentry.io/",
+    "grafana.net/",
+    "grafana.com/",
+)
+# github.com is author-writable in general (a branch, a wiki, a comment anchor),
+# so only the sub-namespaces whose bytes CI or the upload endpoint produce count.
+ARTIFACT_PATH_ALLOWLIST = (
+    "/actions/runs/",
+    "/user-attachments/",
+    "/blob/",
+    "/commit/",
+    "/pull/",
+)
+# Escape hatch for hosting the author does control — an artifact bucket, an
+# internal dashboard. Registering one is a deliberate, visible downgrade: the
+# artifact becomes fetchable rather than independent, and a reader who trusts
+# it is trusting the author. Comma-separated substrings.
+#   EVIDENCE_GATE_ARTIFACT_HOSTS=my-bucket.s3.amazonaws.com,dash.internal
+_EXTRA_HOSTS = tuple(
+    h.strip().lower()
+    for h in (os.environ.get("EVIDENCE_GATE_ARTIFACT_HOSTS") or "").split(",")
+    if h.strip()
+)
+_URL_RE = re.compile(r"https?://[^\s)>\]\"']+")
+_LOCAL_REF_RE = re.compile(
+    r"`?([\w./-]+\.(?:test|spec)\.[tj]sx?)(?::\d+)?`?"
+    r"|`?([\w./-]+\.(?:png|jpe?g|gif|mp4|webm|har|log|json))`?"
+)
+
+
+def _url_is_credible(url):
+    low = url.lower()
+    if _EXTRA_HOSTS and any(h in low for h in _EXTRA_HOSTS):
+        return True
+    if not any(h in low for h in ARTIFACT_HOST_ALLOWLIST):
+        return False
+    if "github.com/" in low and "githubusercontent" not in low and "gist." not in low:
+        return any(p in low for p in ARTIFACT_PATH_ALLOWLIST)
+    return True
+
+
+def _local_ref_exists(ref):
+    if os.path.isabs(ref):
+        return os.path.exists(ref)
+    for root in (os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR") or ""):
+        if root and os.path.exists(os.path.join(root, ref)):
+            return True
+    return False
+
+
+def _has_credible_artifact(unit, pattern):
+    """True only if this unit carries an artifact the author could not fabricate."""
+    if not pattern.search(unit):
+        return False
+    for url in _URL_RE.findall(unit):
+        if _url_is_credible(url):
+            return True
+    for m in _LOCAL_REF_RE.finditer(unit):
+        ref = m.group(1) or m.group(2)
+        if ref and _local_ref_exists(ref):
+            return True
+    return False
+
+
 def _positive_verdict(unit):
     """A non-negated verdict token in this unit, or None."""
     for m in VERDICT.finditer(unit):
@@ -490,14 +565,14 @@ def _positive_verdict(unit):
 
 def _scan_unit(unit, violations):
     # ── VERDICT: excused by a co-located inspectable artifact.
-    if not ARTIFACT.search(unit):
+    if not _has_credible_artifact(unit, ARTIFACT):
         tok = _positive_verdict(unit)
         if tok:
             _add(violations, "verdict", tok, unit)
 
     # ── OBSERVATION: needs an observation-class artifact. A /blob/ code
     #    permalink does NOT excuse it.
-    if not OBS_ARTIFACT.search(unit):
+    if not _has_credible_artifact(unit, OBS_ARTIFACT):
         for m in OBSERVATION.finditer(unit):
             if _negated(unit, m.start()):
                 continue
@@ -551,7 +626,7 @@ def _scan_unit(unit, violations):
 
     # ── BARE IDENTIFIER (item 12): an id with no resolving link and no
     #    re-hosted capture is a digging assignment.
-    if not RESOLVER.search(unit) and not OBS_ARTIFACT.search(unit):
+    if not RESOLVER.search(unit) and not _has_credible_artifact(unit, OBS_ARTIFACT):
         bm = BARE_ID.search(unit)
         if bm:
             _add(violations, "bare-identifier", bm.group(0), unit)
