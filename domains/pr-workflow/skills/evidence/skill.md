@@ -177,6 +177,42 @@ untested path touches funds, keys, persisted state, user-visible wrongness, or s
 planning tracker. Subject matter triggers this, not severity: the code cannot distinguish a missing
 gate from a deliberate one.
 
+**7. Measure the pull request, which is a range, not a commit.** `$SHA^..$SHA` is one commit's
+diff. On a twenty-six-commit branch it is a twenty-sixth of the change, and it looks exactly like a
+finished measurement — same runner, same green run, same artifact. Take the head from
+`.head.sha` and the base from `merge_base_commit.sha` on the compare endpoint, and say the range in
+the comment so a reader can see what was covered. `.base.sha` is the base branch's tip, which moves
+under you and is not where the branch left.
+
+**8. The label on a number is part of the number.** A runner reads a field out of a line its probe
+printed; it knows the field's name and not what was counted. When a probe for a claim about value
+identity counts distinct values, publishing that under a fixed heading of "renders" ships a correct
+measurement of the wrong quantity, and every check passes. Whatever names the number is caller-
+stated, like the verdict — and the comment points at the probe, which is the definition.
+
+**9. An instrument reports what it did, never what it was asked to do.** A mutation runner that
+echoes its `--replace` argument into the artifact cannot detect its own misfire, because the two
+are the same string by construction. They came apart once: `awk -v r="$REPLACE"` escape-processes
+the assignment, so a replacement of `/^[\s\S]{1,4096}$/u` was written to the file as
+`/^[sS]{1,4096}$/u` — narrowing the regex it was meant to widen. Arm B ran the same test count as
+arm A, so every guard was satisfied, a different test failed than the one targeted, and the run
+reported the suite as having power over a mechanism it never touched. Read the mutated line back
+off disk and publish that; keep the requested text beside it. The rule generalises past mutation:
+wherever a runner takes an instruction and performs an effect, the artifact carries the effect.
+
+### The claim is scoped to what the run could see
+
+A run measures a diff, a file, a probe. What sits behind an interface it calls is not in the
+measurement, and a comment that speaks past that boundary is asserting rather than reporting.
+
+The instrumentation lanes make this concrete: a diff can show that a span is created and that a
+flag gates it, and cannot show how often the surrounding package invokes the callback. That is not
+a gap to apologise for — it is the finding. *"Cost scales with a call frequency decided in another
+package, so nothing here bounds it"* is a real conclusion, and the reviewer is the person who knows
+the number.
+
+Say where the edge is, in the comment, in the reviewer's terms.
+
 ### The runner, not the recipe
 
 `scripts/falsify-probe.sh` proves a test is falsifying by mutation rather than by reading, and
@@ -620,7 +656,7 @@ Where evidence sits in the PR lifecycle (see the public `pr-workflow` siblings):
 
   | category | engine |
   |---|---|
-  | B3 falsifying regression test | `/falsifying-test` |
+  | B3 falsifying regression test | `/red-on-base` |
   | B7 deterministic interleaving (concurrency / ordering) | `/race-condition-repro` |
   | C4 React render & selector proof | `/react-render-delta` |
   | C9 memory leak | `/memory-leak` |

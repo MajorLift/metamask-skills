@@ -13,13 +13,17 @@ The trustworthiness gate is the checklist; THIS is the trigger that runs it.
 Each class below implements a numbered item of `references/evidence-trustworthiness.md`.
 
 Contract: reads PreToolUse JSON on stdin. Exit 0 = allow. Exit 2 = block
-(stderr shown to the model). Fails OPEN on anything it cannot parse, so it
-never bricks unrelated Bash commands.
+(stderr shown to the model). Fails OPEN on anything it cannot parse, so it never
+bricks unrelated Bash commands — but once it has identified a body it is going to
+publish, it fails CLOSED: if attest-gate.sh cannot be found or run, the write is
+refused rather than waved through.
 """
 import json
 import os
 import re
+import subprocess
 import sys
+import tempfile
 
 
 def _out_allow():
@@ -59,10 +63,43 @@ def main():
         _out_allow()
 
     body = _extract_body(cmd)
+    # An unexpanded shell construct is not a body. `--body "$(cat f)"` extracts the literal
+    # characters `$(cat f)`, which scans clean and publishes whatever the shell substitutes
+    # later — the gate would be inspecting a string the reader never sees.
+    #
+    # Look at the ARGUMENT, not the body text. A first attempt scanned the body for `$` and
+    # backticks and rejected every evidence comment ever written, because markdown inline
+    # code is backticks and these artifacts are full of them. The shell metacharacters that
+    # matter are in the command; the body is just prose.
+    if _body_arg_is_unresolvable(cmd):
+        body = ""
     if not body:
-        _out_allow()  # can't read it -> don't block; nothing to scan
+        # FAIL CLOSED. The previous reasoning here was "can't read it -> nothing to scan",
+        # which inverts the situation: by this point the command has already been identified
+        # as an outward-facing write, so an unreadable body is not an absent risk, it is an
+        # unverifiable one.
+        #
+        # This was not theoretical. The extraction is textual, so a path assembled from a
+        # shell variable — `--body-file $S/comment.md` — or a body spliced in with
+        # `--body "$(cat f)"` yields nothing, and every such publish sailed through while
+        # the gate reported itself healthy. An entire session of publishes went ungated this
+        # way, including one the gate blocks when handed the same body by literal path.
+        _block(
+            "EVIDENCE GATE (PreToolUse) — blocked an outward-facing write whose body "
+            "could not be read.\n\n"
+            "The body path could not be resolved from the command. This hook reads the "
+            "command as text and cannot expand shell variables, command substitution, or "
+            "heredocs, so a body assembled that way is unverifiable rather than safe.\n\n"
+            "Pass a literal path:\n"
+            "    gh pr comment <n> --repo <owner/repo> --body-file /abs/path/to/comment.md\n\n"
+            "If the body genuinely has no file, write it to one first. The gate has to see "
+            "what you are about to publish.\n"
+        )
 
     violations = _scan(body)
+    if re.search(r"\bgh\s+issue\s+comment\b", cmd):
+        violations += _scan_enrichment_via_comment(body)
+    violations += _run_attest_gate(body, cmd)
     if not violations:
         _out_allow()
 
@@ -90,6 +127,10 @@ def main():
 
 
 NEEDS = {
+    "enrichment": "a BODY EDIT instead (`gh issue edit --body-file`) — this reads like a resolved finding, not a reply",
+    "attest-gate": "the check named above to pass — run scripts/attest-gate.sh yourself to iterate",
+    "gate-missing": "attest-gate.sh on disk; refusing to publish a body nothing verified",
+    "gate-error": "attest-gate.sh to run successfully; refusing to publish unverified",
     "verdict": "an inspectable ARTIFACT (https:// permalink, /blob/<sha>/, or a *.test.ts ref)",
     "observation": "an OBSERVATION artifact (screenshot/recording/log/JSON/permalink) — "
                    "a /blob/ code link witnesses code, not runtime behavior",
@@ -193,12 +234,19 @@ DEFERRAL = re.compile(
 TRACKER = re.compile(
     r"(?i)(?:#\d+|https?://\S*(?:issues|pull)/\d+|\btriage\b|follow-?up|tracked\s+in)"
 )
-# ── item 11: CI restatement — unconditional in validation scope ────────────
-CI_RESTATEMENT = re.compile(
-    r"(?i)(?:actions/runs/\d+|\bchecks?\s+tab\b|\bgreen\s+(?:at\s+head|in\s+)"
+# ── item 11: CI restatement — unconditional in validation scope, EXCEPT a
+#    specific run/job reference co-located with a genuine GH Actions log
+#    timestamp in the same unit (see CI_RUN_REF / GH_ACTIONS_LOG_LINE below).
+#    Qualitative CI-health language (below) is never excused by anything —
+#    a nearby timestamp does not substantiate "CI is green"; it only
+#    substantiates the specific job the timestamped line came from.
+CI_RUN_REF = re.compile(r"(?i)actions/runs/\d+(?:/job/\d+)?")
+CI_QUALITATIVE = re.compile(
+    r"(?i)(?:\bchecks?\s+tab\b|\bgreen\s+(?:at\s+head|in\s+)"
     r"|\ball\s+(?:tests|checks|jobs)\s+(?:pass\w*|green)\b|\bCI\s+(?:is\s+)?green\b"
     r"|\b\d+\s+pass(?:ing|ed)?\s*/\s*\d+\s+fail\w*)"
 )
+GH_ACTIONS_LOG_LINE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", re.MULTILINE)
 # ── item 11: inflated verdict — proof language beside a non-exercise ───────
 NOT_EXERCISED = re.compile(
     r"(?i)(?:was\s+not\s+exercised|not\s+exercised\b|not\s+separately\s+captured"
@@ -238,6 +286,153 @@ SCOPE_PARA = re.compile(
     r"|\bsnapshot\b|\bscreenshot|byte-identical|\bworks\s+as\s+described\b"
     r"|\bin\s+two\s+independent\s+runs\b|\bin\s+a\s+(?:real|live)\s+browser\b)"
 )
+
+
+
+# ── attest-gate delegation ────────────────────────────────────────────────────
+# The rules live in attest-gate.sh. This hook used to carry a second, narrower copy
+# of them — keyed on verdict tokens — and a diligence comment that renders no verdict
+# satisfied neither the copy here nor the copy there. Two rule sets means the weaker
+# one governs whatever falls between them, which is how a results section of hand-typed
+# terminal output reached a public PR under both gates.
+#
+# So: one rule set, invoked at the one point the model cannot route around. The model
+# runs the gate by choice; this runs it by construction.
+def _gv(kind, token, snippet):
+    """attest-gate findings, in the shape the reporter already renders."""
+    return {"kind": kind, "token": token, "snippet": snippet}
+
+
+def _repo_pr_from_cmd(cmd):
+    """owner/repo#N for check 12. A comment-update URL carries the COMMENT id, not the
+    issue's — reading it as a PR number asks the gate whether pull #5177261620 is open,
+    which 404s and reports as 'destination unknown'. So resolve it."""
+    m = re.search(r"(?:--repo\s+|github\.com/|repos/)([\w.-]+/[\w.-]+)", cmd)
+    repo = m.group(1) if m else ""
+    if not repo:
+        return ""
+    c = re.search(r"issues/comments/(\d+)", cmd)
+    if c:
+        try:
+            out = subprocess.run(
+                ["gh", "api", f"repos/{repo}/issues/comments/{c.group(1)}",
+                 "--jq", ".issue_url"],
+                capture_output=True, text=True, timeout=30)
+            n = re.search(r"/issues/(\d+)\s*$", out.stdout.strip())
+            return f"{repo}#{n.group(1)}" if n else ""
+        except Exception:  # noqa: BLE001
+            return ""
+    n = re.search(r"(?:issues|pulls?)/(\d+)|\bpr\s+(?:comment|edit|create)\s+(\d+)", cmd)
+    num = next((g for g in (n.groups() if n else ()) if g), "")
+    return f"{repo}#{num}" if num else ""
+
+
+def _find_gate():
+    here = os.path.dirname(os.path.abspath(__file__))
+    for cand in (
+        os.path.join(here, "..", "scripts", "attest-gate.sh"),
+        os.path.join(here, "attest-gate.sh"),
+        os.path.expanduser("~/.claude/skills/mms-evidence/scripts/attest-gate.sh"),
+        os.environ.get("ATTEST_GATE", ""),
+    ):
+        if cand and os.path.isfile(cand):
+            return os.path.abspath(cand)
+    return ""
+
+
+# Only evidence artifacts are held to the evidence contract. An ordinary reply is not a
+# failed validation run, and running the gate over every published body blocks every normal
+# comment on checks 1-4 — caught by the negative arm of gate-controls.sh before this was
+# wired, which is the entire reason that arm exists. A gate that blocks everything is as
+# broken as one that blocks nothing, and only the negative control tells them apart.
+ARTIFACT_MARKERS = (
+    "VALIDATION_RUN_START",
+    "LAVAMOAT_DILIGENCE_START",
+    "## 🧪 Validation Run",
+)
+
+
+def _is_evidence_artifact(body):
+    if any(m in body for m in ARTIFACT_MARKERS):
+        return True
+    return bool(re.search(r"^\*\*Verdict:\*\*", body, re.M))
+
+
+def _run_attest_gate(body, cmd):
+    if not _is_evidence_artifact(body):
+        return []
+    gate = _find_gate()
+    if not gate:
+        # Fails CLOSED. An enforcement point that waves things through when it cannot
+        # find its rules is not an enforcement point; the whole reason this exists is
+        # that the model-invoked path was skippable.
+        return [_gv("gate-missing", "attest-gate.sh not found",
+                    "Set ATTEST_GATE to its path, or install mms-evidence.")]
+    mode = ["--diligence"] if "LAVAMOAT_DILIGENCE_START" in body else []
+    target = _repo_pr_from_cmd(cmd)
+    with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as fh:
+        fh.write(body)
+        path = fh.name
+    try:
+        argv = ["bash", gate, path] + mode + (["--target", target] if target else [])
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=120)
+    except Exception as exc:  # noqa: BLE001 - any failure to run it is a failure to verify
+        os.unlink(path)
+        return [_gv("gate-error", str(exc), "attest-gate.sh could not be run.")]
+    os.unlink(path)
+    if proc.returncode == 0:
+        return []
+    out = proc.stdout.splitlines()
+    fails = []
+    for i, ln in enumerate(out):
+        if ln.strip().startswith("FAIL"):
+            detail = out[i + 1].strip() if i + 1 < len(out) else ""
+            fails.append(_gv("attest-gate", ln.strip()[6:].strip(), detail))
+    return fails or [_gv("attest-gate", f"exit {proc.returncode}", proc.stdout[-200:])]
+
+
+REPLY_TEMPLATE_OPENER = re.compile(
+    r"(?i)^\s*(?:addressed|resolved|reverted)\s*:\s*\S"
+)
+
+
+def _scan_enrichment_via_comment(body):
+    """`gh issue comment` posting a standalone finding — should be a body edit.
+
+    Structural signal, not a vocabulary one: the real instance this is modeled
+    on (planning#7508) used none of VERDICT's literal words ("ground-truthed",
+    "rules out", "de-risks" — not "confirmed"/"proven"/etc), so reusing that
+    regex as the discriminator missed it entirely on the first attempt (caught
+    by testing against the real text, not by reasoning about it). What actually
+    distinguishes a standalone report from a reply, regardless of vocabulary:
+    several paragraphs, at least one cited link, and no reply-template opener.
+    A properly-templated reply (Addressed:/Resolved:/Reverted: <fact>.) is
+    excused unconditionally — that template is itself the correct convention
+    for a comment (exogram-core: ghostwrite-review-reply-register), so
+    following it is the signal of doing this right, not a loophole.
+    """
+    if REPLY_TEMPLATE_OPENER.search(body.strip()):
+        return []
+    paras = [p.strip() for p in re.split(r"\n\s*\n", body) if p.strip()]
+    if len(paras) < 3:
+        return []  # short reply, even with a link, isn't a standalone report
+    if not re.search(r"https?://\S+", body):
+        return []  # no cited evidence — not the report shape either
+    snip = re.sub(r"\s+", " ", paras[0])[:120]
+    return [{"token": "standalone finding", "snippet": snip, "kind": "enrichment"}]
+
+
+# The text following --body/--body-file, up to the next argument. If it carries a variable,
+# a command substitution, or a backtick, this hook cannot know what will actually be sent.
+BODY_ARG = re.compile(r"(?:--body-file|--body|-F\s+body|--field\s+body|--raw-field\s+body)[=\s]+(\S+)")
+
+
+def _body_arg_is_unresolvable(cmd):
+    m = BODY_ARG.search(cmd)
+    if not m:
+        return False
+    arg = m.group(1)
+    return bool(re.search(r"\$|`", arg))
 
 
 def _scan(body):
@@ -318,10 +513,21 @@ def _scan_unit(unit, violations):
     # ── CI RESTATEMENT (item 11): unconditional in validation scope. No
     #    verdict co-location required, no "beyond-CI"/"as context" excuse —
     #    a carve-out here is an instruction to phrase every violation as the
-    #    exception.
-    cm = CI_RESTATEMENT.search(unit)
-    if cm:
-        _add(violations, "ci-restatement", cm.group(0), unit)
+    #    exception. ONE narrow, tested exception: a specific run/job URL is
+    #    not itself a restatement when a genuine GH Actions log timestamp
+    #    (YYYY-MM-DDTHH:MM:SS.ffffffZ, machine-emitted, not authorable as
+    #    prose) is co-located in the same unit — that is a captured excerpt
+    #    citing its source, not an unbacked assertion. Qualitative language
+    #    ("CI is green", "checks tab", "N passing/M failing") is excused by
+    #    nothing, ever, even a real timestamp two lines away — it names no
+    #    specific job the timestamp could belong to.
+    qualitative = CI_QUALITATIVE.search(unit)
+    run_ref = CI_RUN_REF.search(unit)
+    has_real_log_line = bool(GH_ACTIONS_LOG_LINE.search(unit))
+    if qualitative:
+        _add(violations, "ci-restatement", qualitative.group(0), unit)
+    elif run_ref and not has_real_log_line:
+        _add(violations, "ci-restatement", run_ref.group(0), unit)
 
     # ── INFLATED VERDICT (item 11): proof language co-located with an
     #    admission the surface was not exercised.
