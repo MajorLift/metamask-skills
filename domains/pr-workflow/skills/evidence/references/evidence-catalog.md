@@ -99,6 +99,7 @@ Legend: **first-class lanes** are `##`-headed; closely-related variants are sub-
 - **Proves:** a component/selector stopped over-rendering (cascade-amplification before/after).
 - **Capture:** WDYR via `ENABLE_WHY_DID_YOU_RENDER` (`.metamaskrc` or env) — wired in `app/scripts/development/wdyr.ts` (`trackAllPureComponents`); console logs each unnecessary re-render. `yarn devtools:react` for the Profiler flame graph. Selectors use `reselect`'s `createSelector`, which **does expose a real `.recomputations()` counter** — read it (sample on an interval if the count should visibly climb) rather than injecting a log into the selector body; an injected log is an authored claim, a library API is an observation. *(This entry previously said there was no built-in counter. There is.)*
 - **Bar:** the delivery check comes before the number. An arm whose manipulation cannot be observed in the built bundle produces a null indistinguishable from "small effect" — and reports as the second.
+- **Probe shipped with this skill:** `assets/metametrics-context.test.tsx` asserts context-value identity across renders. Copy it to `ui/contexts/__render_probe__.test.tsx` in an extension tree; its imports are relative to that directory, so another destination will not resolve.
 
 ## C5. Benchmark A/B
 - **Proves:** a startup/journey/interaction timing moved, with a distribution not one sample.
