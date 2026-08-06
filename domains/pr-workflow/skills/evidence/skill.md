@@ -150,6 +150,32 @@ a PR body.**
 
 ### Non-negotiables — these are here, not in a reference, because a requirement you have to fetch is advisory
 
+Three of the nine below are enforced by the gate. Six are not: they hold only if you
+apply them. `scripts/principle-coverage.py` measures which is which — it constructs a
+body violating one principle and nothing else, and reports whether the gate blocks it,
+because a check *named* after a principle is not the same as a check that catches a
+violation of it. Run it before assuming any of these is handled for you:
+
+```
+$ python3 scripts/principle-coverage.py
+CONTROL (clean body, must be ALLOWED): ALLOWED
+  ENFORCED    1 artifact the reader can check      caught by ['attest-gate', 'verdict']
+  unenforced  2 `proven` requires execution        publishes cleanly
+  ENFORCED    3 no 'what would close it'           caught by ['attest-gate']
+  unenforced  4 write to the reviewer              publishes cleanly
+  ENFORCED    5 drop test-quality-only findings    caught by ['attest-gate']
+  unenforced  6 route privacy/security findings    publishes cleanly
+  unenforced  7 measure the PR range               publishes cleanly
+  unenforced  8 the label on a number              publishes cleanly
+  unenforced  9 instrument reports what it did     publishes cleanly
+
+3/9 enforced, 6/9 exist only as prose
+```
+
+Item 2 is the subtle one: check 8 keys on a provenance marker being present *anywhere*
+in the body, so a verdict reached by reading passes as long as an artifact sits nearby.
+The check is a proxy for the rule, not the rule.
+
 **1. Ship an artifact the reader can check without trusting you.** Terminal text you pasted is
 indistinguishable from terminal text you invented; it carries the weight of your assertion, not
 of a measurement. Running the check justifies *your* belief. It becomes *evidence* only when the
