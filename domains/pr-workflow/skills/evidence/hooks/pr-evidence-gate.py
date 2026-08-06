@@ -323,10 +323,14 @@ def _repo_pr_from_cmd(cmd):
 def _find_gate():
     here = os.path.dirname(os.path.abspath(__file__))
     for cand in (
+        # An explicit override that loses to a default is not an override. This
+        # ranked last, so a control run pointing ATTEST_GATE at a stand-in gate
+        # silently exercised the installed one instead and reported on it — the
+        # test looked like it passed and measured the wrong binary.
+        os.environ.get("ATTEST_GATE", ""),
         os.path.join(here, "..", "scripts", "attest-gate.sh"),
         os.path.join(here, "attest-gate.sh"),
         os.path.expanduser("~/.claude/skills/mms-evidence/scripts/attest-gate.sh"),
-        os.environ.get("ATTEST_GATE", ""),
     ):
         if cand and os.path.isfile(cand):
             return os.path.abspath(cand)
@@ -345,10 +349,19 @@ ARTIFACT_MARKERS = (
 )
 
 
+# Where the bold stops is not a fact about the claim. `**Verdict:** proven`
+# ran all thirteen checks and `**Verdict: proven**` ran none — the same
+# sentence, rendered the same way, one of them silently unenforced. Match the
+# bolded Verdict lead however the emphasis falls, while staying anchored to a
+# line-leading bold run so that mentioning the word in prose still does not
+# drag a normal comment into the gate.
+_VERDICT_LEAD = re.compile(r"^\s*\*\*\s*Verdict\b[^*\n]*\*\*", re.M | re.I)
+
+
 def _is_evidence_artifact(body):
     if any(m in body for m in ARTIFACT_MARKERS):
         return True
-    return bool(re.search(r"^\*\*Verdict:\*\*", body, re.M))
+    return bool(_VERDICT_LEAD.search(body))
 
 
 def _run_attest_gate(body, cmd):
