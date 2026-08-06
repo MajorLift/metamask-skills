@@ -1,0 +1,118 @@
+### target HEAD : a11a6b844f0fce2cd35d127fcd17d9f6fb44ec7d
+### node        : v24.13.1
+### probes from : /home/runner/work/metamask-skills/metamask-skills/.evidence-skills/domains/pr-workflow/skills/evidence/probes
+
+########## ARM A — as shipped (three tests are it.skip) ##########
+ARM A exit=0
+(node:3073) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+PASS shared/lib/trace.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       3 skipped, 25 passed, 28 total
+Snapshots:   0 total
+Time:        1.986 s, estimated 2 s
+Ran all test suites matching /shared\/lib\/trace.test.ts|app\/scripts\/lib\/sentry-trace-propagation.concurrency.test.ts/i.
+
+✅ No console baseline violations.
+
+
+########## ARM M — mutation applied, then read back off disk ##########
+-- the three lines as they now exist on disk:
+shared/lib/trace.test.ts:635:    it('does not parent the second span under the still-pending first one', async () => {
+shared/lib/trace.test.ts:684:    it('does not let a third concurrent call inherit an already-corrupted lineage', async () => {
+app/scripts/lib/sentry-trace-propagation.concurrency.test.ts:174:    it('correlates an operation’s own outbound request with its own trace id, not a concurrently-pending unrelated operation’s', async () => {
+-- remaining it.skip occurrences (expect 0 in both files):
+shared/lib/trace.test.ts:0
+app/scripts/lib/sentry-trace-propagation.concurrency.test.ts:0
+
+########## ARM B — identical bodies, .skip removed ##########
+ARM B exit=1
+(node:3146) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+FAIL app/scripts/lib/sentry-trace-propagation.concurrency.test.ts
+  ● getCurrentTraceId() under concurrent trace() calls (MetaMask-planning#7523) › when a second, unrelated trace() call is still pending › correlates an operation’s own outbound request with its own trace id, not a concurrently-pending unrelated operation’s
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "021be209-0616-4d1b-82ba-aaf400077a92"
+    Received: undefined
+
+    [0m [90m 224 |[39m         [36mconst[39m requestId [33m=[39m requestIdFromBaggage(capturedBaggage())[33m;[39m
+     [90m 225 |[39m
+    [31m[1m>[22m[39m[90m 226 |[39m         expect(correlatedRequestId([33mTRACE_ID_A[39m))[33m.[39mtoBe(requestId)[33m;[39m
+     [90m     |[39m                                                 [31m[1m^[22m[39m
+     [90m 227 |[39m         expect(correlatedRequestId([33mTRACE_ID_B[39m))[33m.[39mnot[33m.[39mtoBe(requestId)[33m;[39m
+     [90m 228 |[39m
+     [90m 229 |[39m         bGate[33m.[39mresolve()[33m;[39m[0m
+
+      at Object.toBe (app/scripts/lib/sentry-trace-propagation.concurrency.test.ts:226:49)
+
+(node:3145) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+FAIL shared/lib/trace.test.ts
+  ● concurrent trace() calls (MetaMask-planning#7523) › when a second, unrelated trace() call starts while the first is still pending › does not parent the second span under the still-pending first one
+
+    expect(received).toBeUndefined()
+
+    Received: "b9565019338dd170"
+
+    [0m [90m 666 |[39m         expect(
+     [90m 667 |[39m           spanB [33m&&[39m [33mSentry[39m[33m.[39mspanToJSON(spanB)[33m.[39mparent_span_id[33m,[39m
+    [31m[1m>[22m[39m[90m 668 |[39m         )[33m.[39mtoBeUndefined()[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 669 |[39m         expect(spanB[33m?[39m[33m.[39mspanContext()[33m.[39mtraceId)[33m.[39mnot[33m.[39mtoBe(
+     [90m 670 |[39m           spanA[33m?[39m[33m.[39mspanContext()[33m.[39mtraceId[33m,[39m
+     [90m 671 |[39m         )[33m;[39m[0m
+
+      at Object.toBeUndefined (shared/lib/trace.test.ts:668:11)
+
+  ● concurrent trace() calls (MetaMask-planning#7523) › when a second, unrelated trace() call starts while the first is still pending › does not let a third concurrent call inherit an already-corrupted lineage
+
+    expect(received).toBeUndefined()
+
+    Received: "a011d7b51e0c39f7"
+
+    [0m [90m 723 |[39m         expect(
+     [90m 724 |[39m           spanC [33m&&[39m [33mSentry[39m[33m.[39mspanToJSON(spanC)[33m.[39mparent_span_id[33m,[39m
+    [31m[1m>[22m[39m[90m 725 |[39m         )[33m.[39mtoBeUndefined()[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 726 |[39m         expect(spanC[33m?[39m[33m.[39mspanContext()[33m.[39mtraceId)[33m.[39mnot[33m.[39mtoBe(
+     [90m 727 |[39m           spanB[33m?[39m[33m.[39mspanContext()[33m.[39mtraceId[33m,[39m
+     [90m 728 |[39m         )[33m;[39m[0m
+
+      at Object.toBeUndefined (shared/lib/trace.test.ts:725:11)
+
+Test Suites: 2 failed, 2 total
+Tests:       3 failed, 25 passed, 28 total
+Snapshots:   0 total
+Time:        2.082 s
+Ran all test suites matching /shared\/lib\/trace.test.ts|app\/scripts\/lib\/sentry-trace-propagation.concurrency.test.ts/i.
+
+✅ No console baseline violations.
+
+
+########## RESTORE ##########
+-- it.skip restored (expect 2 and 1):
+shared/lib/trace.test.ts:2
+app/scripts/lib/sentry-trace-propagation.concurrency.test.ts:1
+
+########## ARM P — discrimination probes (report, do not assert) ##########
+ARM P exit=0
+      PROBE sequential | parent_span_id(second)=undefined | spanId(first)=a74bfeb0483da6ef | parentIsFirst=false | traceId(first)=075b46fd31704987b626c207d59f27d6 | traceId(second)=075b46fd31704987b626c207d59f27d6 | traceIdsEqual=true
+      PROBE interleaved | parent_span_id(second)=a05cf88636bbc481 | spanId(first)=a05cf88636bbc481 | parentIsFirst=true | traceId(first)=bb31c99c33724a09884a5cf890fff5fa | traceId(second)=bb31c99c33724a09884a5cf890fff5fa | traceIdsEqual=true
+      PROBE interleaved-3 (C vs B) | parent_span_id(second)=bc07b3d50aa9104e | spanId(first)=bc07b3d50aa9104e | parentIsFirst=true | traceId(first)=7ab7f47d8ad1486ebd948b864fe44f4e | traceId(second)=7ab7f47d8ad1486ebd948b864fe44f4e | traceIdsEqual=true
+      PROBE interleaved-3 (C vs A) | parent_span_id(second)=bc07b3d50aa9104e | spanId(first)=b207a827ab6fce25 | parentIsFirst=false | traceId(first)=7ab7f47d8ad1486ebd948b864fe44f4e | traceId(second)=7ab7f47d8ad1486ebd948b864fe44f4e | traceIdsEqual=true
+      PROBE INTERLEAVED
+        baggage requestId on A's own fetch = 48a5c6f5-cca5-43bb-bb8b-45534f272baf
+        correlated via A's trace id (aaaaaaaa) = undefined  -> matchesA=false
+        correlated via B's trace id (bbbbbbbb) = 48a5c6f5-cca5-43bb-bb8b-45534f272baf  -> matchesB=true
+        ambient scope trace id = bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb -> correlated = 48a5c6f5-cca5-43bb-bb8b-45534f272baf matchesAmbient=true
+      PROBE CONTROL (B resolved first)
+        baggage requestId on A's own fetch = 922e2d4f-791c-4a69-b706-e1633905fe20
+        correlated via A's trace id (aaaaaaaa) = 922e2d4f-791c-4a69-b706-e1633905fe20  -> matchesA=true
+        correlated via B's trace id (bbbbbbbb) = 48a5c6f5-cca5-43bb-bb8b-45534f272baf  -> matchesB=false
+        ambient scope trace id = aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -> correlated = 922e2d4f-791c-4a69-b706-e1633905fe20 matchesAmbient=true
+Tests:       6 passed, 6 total
+
+### tracked files modified at exit (expect 0): 0
