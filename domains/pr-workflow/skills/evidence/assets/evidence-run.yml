@@ -224,7 +224,12 @@ jobs:
         # Contention produced numbers that were published and then retracted. Running the
         # head arm twice and diffing costs one repeat and turns that into a pre-publish
         # signal rather than a correction.
-        continue-on-error: true
+        #
+        # Deliberately NOT continue-on-error, unlike the two runner steps above. There the
+        # exit code is the verdict and a finding is not a failure. Here a difference is not
+        # a finding about the code — it says the instrument did not return the same answer
+        # twice, so neither answer can be published. With continue-on-error the step's own
+        # `exit 1` was swallowed and the run went green anyway.
         env:
           RUNNER: ${{ inputs.runner }}
           ARGS: ${{ inputs.args }}
@@ -246,8 +251,14 @@ jobs:
                     <(jq -S 'del(.env, .label, .log, .logs)' "$B") > determinism.diff; then
               echo "deterministic across two runs" | tee -a "$GITHUB_STEP_SUMMARY"
             else
-              echo "::warning::runner is NOT deterministic at this ref — do not publish these numbers"
+              # Hard fail, not a warning. The instruction this step emits is "do not
+              # publish these numbers", and a warning cannot enforce it — the run goes
+              # green, the artifact is produced, and the numbers publish anyway. A
+              # control whose only effect is advisory text is the failure this whole
+              # package is about, restated one level up.
+              echo "::error::runner is NOT deterministic at this ref — these numbers are not publishable"
               cat determinism.diff >> "$GITHUB_STEP_SUMMARY"
+              exit 1
             fi
           fi
 

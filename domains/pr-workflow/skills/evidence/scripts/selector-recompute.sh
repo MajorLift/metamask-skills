@@ -26,6 +26,13 @@
 #     --module ui/selectors/multichain-accounts/account-tree \
 #     --export getWalletsWithAccounts \
 #     --fixture test/data/mock-state.json --slice metamask --perturb pinnedAccountList
+#
+# Exit codes — the code is the verdict, so a finding and a failure to measure differ:
+#   0  measured: "narrowed" or "recomputes on unrelated writes"
+#   2  no reading extracted from the probe output
+#   3  usage error
+#   4  VALUE UNSTABLE — correctness precondition failed, the count is not meaningful
+#   5  probe-failed — the instrument produced no reading
 set -uo pipefail
 
 # A run's artifact has to say whether a reader can verify it. In CI the run URL is that
@@ -53,7 +60,7 @@ while [ $# -gt 0 ]; do
     --n)       N="${2:-}"; shift 2 ;;
     --label)   LABEL="${2:-}"; shift 2 ;;
     --out)     OUT_DIR="${2:-}"; shift 2 ;;
-    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,35p' "$0"; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -202,4 +209,20 @@ printf 'limits: one fixture, one perturbed key. A selector unmoved here can stil
 under state this fixture does not reach, and the count says nothing about the cost of each
 recomputation.\n' >&2
 [ -n "$A" ] || exit 2
+
+# The exit code is the verdict, and it has to distinguish a finding from a failure to
+# measure. Both of the cases below were exit 0, so a caller gating on the exit code saw
+# green on a run whose own artifact says the number is not meaningful — and the only thing
+# standing between that and publication was attest-gate happening to grep the verdict
+# string out of the prose.
+#
+#   0  a real measurement: narrowed, or recomputes on unrelated writes. A finding is not
+#      a failure, and a selector that recomputes is a result, not an error.
+#   4  VALUE UNSTABLE — the correctness precondition failed. The count is not meaningful,
+#      so there is no measurement here to gate on.
+#   5  probe-failed — the instrument did not produce a reading at all.
+case "$VERDICT" in
+  "VALUE UNSTABLE"*) exit 4 ;;
+  "probe-failed")    exit 5 ;;
+esac
 exit 0
