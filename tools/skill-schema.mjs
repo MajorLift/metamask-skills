@@ -14,18 +14,7 @@ export const MATURITY_VALUES = ['experimental', 'stable', 'deprecated'];
 export const SCOPE_VALUES = ['user', 'project'];
 
 // Directories the installer copies alongside skill.md (see tools/install).
-export const BUNDLE_DIRS = [
-  'references',
-  'scripts',
-  'assets',
-  'adapters',
-  'workflows',
-  // hooks/ was absent here and from tools/install, so a skill shipping a hook had it
-  // installed by hand and tracked nowhere — which is how the evidence skill's wired
-  // PreToolUse gate, the one control that fires on every publish, came to have no
-  // source of record at all.
-  'hooks',
-];
+export const BUNDLE_DIRS = ['references', 'scripts', 'assets', 'adapters', 'workflows'];
 
 // Directories allowed beside skill.md: the bundle dirs plus the repo-overlay
 // dir. Anything else is rejected, because the installer does not ship it and any
