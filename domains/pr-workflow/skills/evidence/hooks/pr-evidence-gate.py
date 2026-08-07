@@ -585,7 +585,7 @@ def _has_credible_artifact(unit, pattern):
 def _positive_verdict(unit):
     """A non-negated verdict token in this unit, or None."""
     for m in VERDICT.finditer(unit):
-        if not _negated(unit, m.start()):
+        if not _negated(unit, m.start()) and not _in_code_span(unit, m.start()):
             return m.group(0)
     return None
 
@@ -601,7 +601,7 @@ def _scan_unit(unit, violations):
     #    permalink does NOT excuse it.
     if not _has_credible_artifact(unit, OBS_ARTIFACT):
         for m in OBSERVATION.finditer(unit):
-            if _negated(unit, m.start()):
+            if _negated(unit, m.start()) or _in_code_span(unit, m.start()):
                 continue
             _add(violations, "observation", m.group(0), unit)
             break
@@ -672,8 +672,33 @@ def _scan_unit(unit, violations):
         _add(violations, "data-only-exhibit", TELEMETRY_VOCAB.search(unit).group(0), unit)
 
 
+_INLINE_CODE = re.compile(r"`[^`\n]+`")
+
+
+def _in_code_span(text, pos):
+    """A verdict token inside inline code is the word being discussed, not a claim made.
+
+    The same use-versus-mention distinction the fenced-block strip draws one level up:
+    a body quoting `**Verdict:** proven` to document what the trigger matches is writing
+    *about* a verdict. Without this, documenting the rule violates it — which is how it
+    was found, on the description of the pull request that ships the rule.
+
+    Positional rather than a strip of the spans, deliberately. `_has_credible_artifact`
+    reads paths and test refs *out of* inline code, so removing it would delete the
+    evidence that excuses a verdict and tighten the gate instead of correcting it.
+    """
+    return any(m.start() <= pos < m.end() for m in _INLINE_CODE.finditer(text))
+
+
 def _negated(text, pos):
-    """A verdict token preceded by a negator is a hedge, not a claim."""
+    """A verdict token preceded by a negator is a hedge, not a claim.
+
+    The 16-character lookback is narrow enough to miss a negator governing a subordinate
+    clause — "cannot tell whether a screenshot shows" puts it 22 back. Left as is: a
+    window wide enough to reach it also lets a negator elsewhere in the sentence excuse a
+    real claim, and a gate that wrongly allows an unbacked verdict fails at its purpose,
+    where one that wrongly blocks only costs the author a rewrite.
+    """
     pre = text[max(0, pos - 16):pos].lower()
     if re.search(r"\b(not|never|no|isn't|aren't|cannot|can't|without|un|yet)\s*$", pre):
         return True
