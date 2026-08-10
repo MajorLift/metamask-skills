@@ -275,11 +275,17 @@ fi
 # rather than measurements — whole URLs, issue refs, version strings, dates, SHAs,
 # file:line citations, hyphenated identifiers like P-256, and regex quantifiers. Every
 # one of those was added after a control run flagged something that was not a figure.
+#
+# URLs are stripped to whitespace rather than to the first `)`. A Sentry Discover
+# permalink contains `count()` and `count_unique(trace)`, so stopping at `(` left the
+# whole query string in the prose, and every digit in it — project id, time window,
+# per_page — was reported as a figure tracing to no exhibit. A check that fires on every
+# body citing a Discover link teaches the operator to publish through it.
 echo
 NUM_ORPHANS="$(
   awk '/^```/{f=!f; next} f{print}' "$FILE" > "$FILE.exh" 2>/dev/null
   awk '/^```/{f=!f; next} !f{print}' "$FILE" \
-    | sed -E 's#https?://[^ )]*##g' \
+    | sed -E 's#https?://[^[:space:]]*##g' \
     | sed -E 's/#[0-9]+//g; s/\bv?[0-9]+\.[0-9]+(\.[0-9]+)?\b//g; s/\b[0-9]{4}-[0-9]{2}-[0-9]{2}\b//g; s/\b[0-9a-f]{7,}\b//g; s/:[0-9]+\b//g; s/[A-Za-z]+-[0-9]+//g; s/\{[0-9,]+\}//g' \
     | grep -oE '\b[0-9]{2,}\b' | sort -u \
     | while read -r n; do grep -qF "$n" "$FILE.exh" || printf '%s ' "$n"; done
