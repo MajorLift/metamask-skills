@@ -30,7 +30,7 @@ Read [`references/layers.md`](references/layers.md) (or installed
 | Pure logic / helpers / selectors / CV fallback | [`references/unit.md`](references/unit.md) |
 | Screen UI via real Redux / `*.view.test.tsx` | [`references/component-view.md`](references/component-view.md) |
 | App↔controller seam / `*.integration.test.ts` | [`references/integration.md`](references/integration.md) |
-| New or preferred device journey | [`references/appium-e2e.md`](references/appium-e2e.md) |
+| New or preferred device journey / run Appium locally | [`references/appium-e2e.md`](references/appium-e2e.md) → mobile `docs/testing/appium-smoke-testing.md` |
 | Migrating or touching remaining Detox tests | [`references/detox-to-appium.md`](references/detox-to-appium.md) |
 | Area / Jira / PR coverage audit across layers | [`references/placement.md`](references/placement.md) |
 
