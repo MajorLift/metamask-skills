@@ -1,8 +1,9 @@
 # Repo notes — metamask-extension
 
-Specifics for running the two-arm proof in `MetaMask/metamask-extension`. (Kept
-here rather than in `repos/` on purpose: a `repos/` subdir containing only an
-extension overlay would make this skill *skip* installs for mobile and core.)
+Specifics for running the two-arm proof in `MetaMask/metamask-extension`. The
+split against `repos/metamask-extension.md` is by kind rather than by repo: which
+blind spots bite this repo, and where they live, go in the overlay; run mechanics
+— heap size, probe placement, timings — stay here.
 
 ## Typecheck invocation
 
