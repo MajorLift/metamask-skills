@@ -1,6 +1,6 @@
 ---
 name: span-sub-sampling
-domain: analytics
+domain: observability
 description: Deterministic per-trace sub-sampling for high-frequency custom spans — global tracesSampleRate × span sub-rate, traceId-hash bucketed
 ---
 
