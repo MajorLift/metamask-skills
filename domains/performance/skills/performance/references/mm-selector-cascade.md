@@ -89,7 +89,7 @@ For each hit that consumes the fixed root (directly or transitively): remove the
 
 ## What the React Compiler can and cannot do here
 
-The compiler memoizes **within a file**. A `useSelector` result, an imported hook's return value, or an external context value is opaque to it — if the selector hands back a fresh reference, the compiled component still re-renders, and any derivation from it still recomputes (extension audit ticket MetaMask-planning#6661):
+The compiler memoizes **within a file**. A `useSelector` result, an imported hook's return value, or an external context value is opaque to it — if the selector hands back a fresh reference, the compiled component still re-renders, and any derivation from it still recomputes (from the extension performance audit):
 
 ```tsx
 const tokens = useSelector(selectTokens);     // compiler cannot see/stabilize this
@@ -119,4 +119,3 @@ Rule of thumb: values that **cross a file boundary** (Redux selectors, imported 
 - [mm-redux-antipatterns.md](mm-redux-antipatterns.md) — `useSelector(x, isEqual)` as symptom; per-consumer view
 - [mm-unstable-hook-return.md](mm-unstable-hook-return.md) — the same cascade shape, with a hook as the root
 - [mm-state-normalization.md](mm-state-normalization.md) — state shape that prevents cascade-prone selectors
-- [mm-react-compiler-error-triage.md](mm-react-compiler-error-triage.md) — confirming what the compiler actually covers

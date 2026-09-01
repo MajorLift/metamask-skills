@@ -67,12 +67,6 @@ grep -rn -A6 "useEffect(" app --include="*.ts" --include="*.tsx" | grep -E "fetc
 ```
 (`exhaustive-deps` is NOT linted in this repo — check effect deps by hand.) For effect-body problems — derived state via useEffect+setState, effect chains, post-unmount setState — use the read pass in [mm-useeffect-antipatterns.md](mm-useeffect-antipatterns.md).
 
-### React Compiler coverage → [mm-react-compiler-error-triage.md](mm-react-compiler-error-triage.md)
-```bash
-grep -rn "use no memo" app --include="*.ts" --include="*.tsx"   # opt-outs: each needs a reason + TODO
-```
-For a re-render-heavy screen, confirm the components are actually **compiled** (`Memo ✨` in DevTools) before suggesting manual memoization — they may be sitting in the error/unsupported bucket.
-
 ### Animations → [mm-layout-animations.md](mm-layout-animations.md)
 ```bash
 grep -rn "useNativeDriver: false" app --include="*.tsx" --include="*.ts" | grep -v ".test."

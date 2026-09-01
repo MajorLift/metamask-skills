@@ -72,7 +72,6 @@ Always pair measurement with the **power-user scenario on Android** — see [ref
 | Native module / sync method blocking JS | [native-sdks-over-polyfills.md](references/native-sdks-over-polyfills.md) |
 | Native lib crashes on 16KB-page Android | [native-android-16kb-alignment.md](references/native-android-16kb-alignment.md) |
 | Enable automatic memoization | [mm-react-compiler.md](references/mm-react-compiler.md) → [js-react-compiler.md](references/js-react-compiler.md) |
-| Compiler is enabled but a component shows no `Memo ✨`; compiler errors in build output — which are real? | [mm-react-compiler-error-triage.md](references/mm-react-compiler-error-triage.md) |
 
 ## Verified anti-pattern catalogue (this codebase)
 
@@ -109,4 +108,4 @@ Ordered by impact. Each links to the guide with the fix. **The `Where` column li
 
 ## Attribution
 
-Generic React Native references (`js-*`, `native-*`, `bundle-*`) adapted from "The Ultimate Guide to React Native Optimization" by Callstack. MetaMask-specific guidance (`mm-*`) from the internal Performance Guide for Engineers and verified codebase audits. Cross-platform React/Redux guidance (`mm-selector-cascade`, `mm-useeffect-antipatterns`, `mm-state-normalization`, `mm-react-compiler-error-triage`) adapted from MetaMask contributor-docs [`frontend-performance.md`](https://github.com/MetaMask/contributor-docs/blob/main/docs/frontend-performance.md) and the extension performance audit (MetaMask-planning#6571; extension PRs metamask-extension#38007, metamask-extension#37147).
+Generic React Native references (`js-*`, `native-*`, `bundle-*`) adapted from "The Ultimate Guide to React Native Optimization" by Callstack. MetaMask-specific guidance (`mm-*`) from the internal Performance Guide for Engineers and verified codebase audits. Cross-platform React/Redux guidance (`mm-selector-cascade`, `mm-useeffect-antipatterns`, `mm-state-normalization`) adapted from MetaMask contributor-docs [`frontend-performance.md`](https://github.com/MetaMask/contributor-docs/blob/main/docs/frontend-performance.md) and the extension performance audit (extension PRs metamask-extension#38007, metamask-extension#37147).
